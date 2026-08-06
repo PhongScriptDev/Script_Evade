@@ -475,7 +475,7 @@ MainTab:CreateToggle({
 })
 
 -- =============================================
--- AUTO FARM EVENT - MỚI
+-- AUTO FARM EVENT - SỬA LỖI
 -- =============================================
 local AutoFarm = false
 local FarmConnection = nil
@@ -483,81 +483,61 @@ local CollectedCount = 0
 local EventItems = {}
 local CurrentTarget = nil
 local IsMoving = false
+local FarmCooldown = 0
 
--- Tìm tất cả vật phẩm sự kiện trên map
+-- Tìm vật phẩm sự kiện (BÓNG BAY)
 local function FindEventItems()
     EventItems = {}
     local LocalPlayer = game.Players.LocalPlayer
     local character = LocalPlayer.Character
-    if not character then return end
+    if not character then return EventItems end
     
     local rootPos = character:FindFirstChild("HumanoidRootPart")
-    if not rootPos then return end
+    if not rootPos then return EventItems end
     
-    -- Tìm các object có tên liên quan đến sự kiện
-    local searchNames = {
-        "balloon", "bong", "bongbong", "event", "item", "collect", 
-        "gift", "qua", "vật phẩm", "summer", "mùa hè", "2026",
-        "pickup", "collectible", "token", "coin", "xu"
-    }
-    
-    -- Quét toàn bộ workspace
+    -- Tìm bóng bay (balloon) - vật phẩm sự kiện mùa hè 2026
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
-            local name = obj.Name:lower()
-            local isEventItem = false
+        -- Kiểm tra tên có chứa "balloon" hoặc "bong"
+        local name = obj.Name:lower()
+        if name:find("balloon") or name:find("bong") or name:find("event") then
+            -- Lấy vị trí
+            local position = nil
             
-            for _, keyword in ipairs(searchNames) do
-                if name:find(keyword) then
-                    isEventItem = true
-                    break
+            if obj:IsA("Part") or obj:IsA("MeshPart") then
+                position = obj.Position
+            elseif obj:IsA("Model") then
+                if obj:FindFirstChild("PrimaryPart") then
+                    position = obj.PrimaryPart.Position
+                elseif obj:FindFirstChild("HumanoidRootPart") then
+                    position = obj.HumanoidRootPart.Position
+                elseif obj:FindFirstChild("Head") then
+                    position = obj.Head.Position
+                else
+                    -- Lấy vị trí trung bình
+                    local sumPos = Vector3.new(0, 0, 0)
+                    local count = 0
+                    for _, part in ipairs(obj:GetChildren()) do
+                        if part:IsA("Part") or part:IsA("MeshPart") then
+                            sumPos = sumPos + part.Position
+                            count = count + 1
+                        end
+                    end
+                    if count > 0 then
+                        position = sumPos / count
+                    end
                 end
             end
             
-            -- Kiểm tra nếu có ClickDetector hoặc có thể tương tác
-            local hasClickDetector = obj:FindFirstChild("ClickDetector") or obj:FindFirstChild("ProximityPrompt")
-            
-            if isEventItem or hasClickDetector then
-                local position = nil
-                local itemObj = obj
-                
-                -- Nếu là Model, tìm PrimaryPart hoặc HumanoidRootPart
-                if obj:IsA("Model") then
-                    if obj:FindFirstChild("PrimaryPart") then
-                        position = obj.PrimaryPart.Position
-                    elseif obj:FindFirstChild("HumanoidRootPart") then
-                        position = obj.HumanoidRootPart.Position
-                    elseif obj:FindFirstChild("Head") then
-                        position = obj.Head.Position
-                    else
-                        -- Lấy vị trí trung bình của các part trong model
-                        local sumPos = Vector3.new(0, 0, 0)
-                        local count = 0
-                        for _, part in ipairs(obj:GetChildren()) do
-                            if part:IsA("Part") or part:IsA("MeshPart") then
-                                sumPos = sumPos + part.Position
-                                count = count + 1
-                            end
-                        end
-                        if count > 0 then
-                            position = sumPos / count
-                        end
-                    end
-                else
-                    position = obj.Position
-                end
-                
-                if position then
-                    -- Kiểm tra khoảng cách để loại bỏ vật phẩm quá xa (nếu cần)
-                    local dist = (rootPos.Position - position).Magnitude
-                    if dist < 500 then -- Chỉ farm trong bán kính 500 studs
-                        table.insert(EventItems, {
-                            object = obj,
-                            position = position,
-                            distance = dist,
-                            name = obj.Name
-                        })
-                    end
+            if position then
+                local dist = (rootPos.Position - position).Magnitude
+                -- Chỉ lấy vật phẩm trong bán kính 300 studs
+                if dist < 300 then
+                    table.insert(EventItems, {
+                        object = obj,
+                        position = position,
+                        distance = dist,
+                        name = obj.Name
+                    })
                 end
             end
         end
@@ -568,11 +548,11 @@ local function FindEventItems()
         return a.distance < b.distance
     end)
     
-    print("[AutoFarm] Tìm thấy " .. #EventItems .. " vật phẩm sự kiện")
+    print("[AutoFarm] 🎈 Tìm thấy " .. #EventItems .. " bóng bay")
     return EventItems
 end
 
--- Di chuyển đến vị trí
+-- Di chuyển đến vị trí (KHÔNG TELEPORT)
 local function MoveToPosition(targetPos)
     local LocalPlayer = game.Players.LocalPlayer
     local character = LocalPlayer.Character
@@ -584,27 +564,31 @@ local function MoveToPosition(targetPos)
     local humanoid = character:FindFirstChild("Humanoid")
     if not humanoid then return false end
     
-    -- Kiểm tra khoảng cách
     local currentPos = rootPart.Position
     local dist = (currentPos - targetPos).Magnitude
     
-    if dist < 5 then
+    if dist < 8 then
         return true -- Đã đến gần
     end
     
-    -- Di chuyển đến target
+    -- DI CHUYỂN TỪ TỪ (KHÔNG TELEPORT)
     local moveDirection = (targetPos - currentPos).Unit
-    local movePos = currentPos + moveDirection * math.min(dist, 10)
+    local moveSpeed = 16 -- Tốc độ di chuyển
+    local step = math.min(dist, moveSpeed * 0.5)
+    local newPos = currentPos + moveDirection * step
     
-    -- Tạo CFrame mới
-    rootPart.CFrame = CFrame.new(movePos)
+    -- Giữ nguyên Y để không bị rơi
+    newPos = Vector3.new(newPos.X, currentPos.Y, newPos.Z)
     
+    rootPart.CFrame = CFrame.new(newPos)
     return false
 end
 
--- Nhặt vật phẩm
-local function CollectItem(item)
+-- Nhặt bóng bay
+local function CollectBalloon(item)
     if not item or not item.object then return false end
+    
+    print("[AutoFarm] 🎈 Đang nhặt: " .. item.name)
     
     local success = false
     
@@ -614,7 +598,6 @@ local function CollectItem(item)
         pcall(function()
             clickDetector:FireClick()
             success = true
-            print("[AutoFarm] ✅ Đã nhặt: " .. item.name)
         end)
     end
     
@@ -624,35 +607,36 @@ local function CollectItem(item)
         pcall(function()
             proximityPrompt:Fire()
             success = true
-            print("[AutoFarm] ✅ Đã nhặt: " .. item.name)
         end)
     end
     
-
-    -- Cách 3: Touched (di chuyển đến gần để tự động nhặt)
+    -- Cách 3: Di chuyển đến gần để tự động nhặt
     if not success then
         local LocalPlayer = game.Players.LocalPlayer
         local character = LocalPlayer.Character
         if character and character:FindFirstChild("HumanoidRootPart") then
             local root = character.HumanoidRootPart
-            local targetPos = item.position
-            root.CFrame = CFrame.new(targetPos + Vector3.new(0, 0, 0))
+            root.CFrame = CFrame.new(item.position + Vector3.new(0, 0, 0))
             success = true
-            print("[AutoFarm] ✅ Đã di chuyển đến: " .. item.name)
         end
     end
     
     if success then
         CollectedCount = CollectedCount + 1
-        ShowNotification("🎈 Đã nhặt!", "Đã nhặt: " .. item.name .. " (Tổng: " .. CollectedCount .. ")", 2, Color3.fromRGB(0, 255, 255))
+        print("[AutoFarm] ✅ Đã nhặt: " .. item.name .. " (Tổng: " .. CollectedCount .. ")")
+        ShowNotification("🎈 Đã nhặt!", "Bóng bay #" .. CollectedCount, 2, Color3.fromRGB(0, 255, 255))
     end
     
     return success
 end
 
--- Farm chính
-local function FarmLoop()
+-- Farm loop - Klocal function FarmLoop()
     if not AutoFarm then return end
+    
+    -- Cooldown để không spam
+    if tick() - FarmCooldown < 2 then
+        return
+    end
     
     local LocalPlayer = game.Players.LocalPlayer
     local character = LocalPlayer.Character
@@ -662,7 +646,8 @@ local function FarmLoop()
     local items = FindEventItems()
     
     if #items == 0 then
-        print("[AutoFarm] ⚠️ Không tìm thấy vật phẩm nào!")
+        print("[AutoFarm] ⚠️ Không tìm thấy bóng bay nào!")
+        FarmCooldown = tick()
         return
     end
     
@@ -678,20 +663,21 @@ local function FarmLoop()
     
     if dist < 10 then
         -- Ở gần -> nhặt
-        CollectItem(target)
+        CollectBalloon(target)
+        FarmCooldown = tick()
         wait(0.5)
     else
-        -- Di chuyển đến gần
-        print("[AutoFarm] 🚶 Đang di chuyển đến: " .. target.name .. " (Khoảng cách: " .. tostring(dist) .. ")")
+        -- Di chuyển đến gần (KHÔNG TELEPORT)
+        print("[AutoFarm] 🚶 Đang di chuyển đến bóng bay (Khoảng cách: " .. tostring(math.floor(dist)) .. " studs)")
         MoveToPosition(target.position)
-        wait(0.3)
+        FarmCooldown = tick()
     end
 end
 
 -- Toggle Auto Farm
 MainTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
-    Description = "Tự động quét map và nhặt vật phẩm sự kiện (Mùa hè 2026)",
+    Description = "Tự động tìm và nhặt bóng bay (Sự kiện mùa hè 2026)",
     CurrentValue = false,
     Callback = function(Value)
         AutoFarm = Value
@@ -699,19 +685,19 @@ MainTab:CreateToggle({
         if AutoFarm then
             CollectedCount = 0
             print("[AutoFarm] ===== ĐÃ BẬT =====")
-            ShowNotification("🎈 Auto Farm Event", "Đã bật! Đang tìm vật phẩm...", 3, Color3.fromRGB(0, 255, 255))
+            ShowNotification("🎈 Auto Farm", "Đang tìm bóng bay...", 3, Color3.fromRGB(0, 255, 255))
             
-            -- Tìm vật phẩm ngay lập tức
+            -- Tìm vật phẩm ngay
             wait(0.5)
             local items = FindEventItems()
-            ShowNotification("🎈 Tìm thấy!", "Đã tìm thấy " .. #items .. " vật phẩm trên map", 3, Color3.fromRGB(0, 255, 0))
+            ShowNotification("🎈 Tìm thấy!", "Đã tìm thấy " .. #items .. " bóng bay trên map", 3, Color3.fromRGB(0, 255, 0))
             
             if FarmConnection then
                 FarmConnection:Disconnect()
             end
             
-            -- Chạy farm loop mỗi 1 giây
-            FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            -- Chạy farm mỗi 1.5 giây (KHÔNG SPAM)
+            FarmConnection = game:GetService("RunService").Stepped:Connect(function()
                 if AutoFarm then
                     pcall(function()
                         FarmLoop()
@@ -723,7 +709,7 @@ MainTab:CreateToggle({
             
         else
             print("[AutoFarm] ===== ĐÃ TẮT =====")
-            ShowNotification("❌ Auto Farm Event", "Đã tắt! Tổng cộng nhặt được: " .. CollectedCount .. " vật phẩm", 3, Color3.fromRGB(255, 0, 0))
+            ShowNotification("❌ Auto Farm", "Đã tắt! Tổng: " .. CollectedCount .. " bóng bay", 3, Color3.fromRGB(255, 0, 0))
             
             if FarmConnection then
                 FarmConnection:Disconnect()
@@ -734,6 +720,26 @@ MainTab:CreateToggle({
 })
 
 -- =============================================
+-- LABEL THỐNG KÊ FARM
+-- =============================================
+local FarmSection = MainTab:CreateSection("📊 Thống kê Farm")
+local FarmLabel = MainTab:CreateLabel("🎈 Đã nhặt: 0 bóng bay")
+
+-- Cập nhật thống kê
+local function UpdateFarmLabel()
+    pcall(function()
+        if FarmLabel then
+            FarmLabel:Set("🎈 Đã nhặt: " .. CollectedCount .. " bóng bay")
+        end
+    end)
+end
+
+-- Cập nhật mỗi giây
+game:GetService("RunService").Heartbeat:Connect(function()
+    UpdateFarmLabel()
+end)
+
+-- =============================================
 -- THÔNG TIN
 -- =============================================
 MainTab:CreateSection("📋 Thông tin")
@@ -741,9 +747,9 @@ MainTab:CreateLabel("👤 Tác giả: Nate & Ngọt")
 MainTab:CreateLabel("📱 Tương thích: Delta v2.731")
 MainTab:CreateLabel("⚠️ An toàn 21% = 21% tỷ lệ chết")
 MainTab:CreateLabel("⚡ Chế độ phản ứng siêu nhanh")
-MainTab:CreateLabel("🎈 Auto Farm: Mùa hè 2026")
+MainTab:CreateLabel("🎈 Sự kiện: Mùa hè 2026")
 
 print("========================================")
 print("[Evade Menu] Đã tải thành công!")
 print("[Evade Menu] Tác giả: Nate & Ngọt")
-print("========================================")
+print("========================================")HÔNG SPAM
