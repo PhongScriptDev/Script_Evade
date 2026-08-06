@@ -1,21 +1,22 @@
--- Tải thư viện Kavo UI
+-- ===== LOAD THƯ VIỆN =====
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/Kavo%20Ui.lua"))()
 
--- Tạo cửa sổ chính
+-- ===== TẠO WINDOW =====
 local Window = Library.CreateLib("Evade Menu", "DarkTheme")
 
--- Tạo tab chính
+-- ===== TẠO TAB =====
 local MainTab = Window:NewTab("Chính")
 
--- Tạo phần cài đặt
+-- ===== TẠO SECTION =====
 local MainSection = MainTab:NewSection("Cài đặt")
 
--- Biến Anti AFK
+-- =============================================
+-- CHỐNG AFK
+-- =============================================
 local AntiAFK = false
 local AFKConnection = nil
 
--- Toggle Anti AFK
-MainSection:NewToggle("Chống AFK", "Ngăn bị kick sau 20 phút không di chuyển", function(state)
+MainSection:NewToggle("Chống AFK", "Ngăn bị kick sau 20 phút", function(state)
     AntiAFK = state
     
     if AntiAFK then
@@ -28,21 +29,22 @@ MainSection:NewToggle("Chống AFK", "Ngăn bị kick sau 20 phút không di chu
                     VirtualUser:CaptureController()
                     VirtualUser:ClickButton2(Vector2.new())
                 end)
-                print("[Chống AFK] Đã reset timer")
+                print("[Anti AFK] Reset timer")
             end
         end)
-        
-        print("[Chống AFK] Đã bật")
+        print("[Anti AFK] Bật")
     else
         if AFKConnection then
             AFKConnection:Disconnect()
             AFKConnection = nil
-            print("[Chống AFK] Đã tắt")
         end
+        print("[Anti AFK] Tắt")
     end
 end)
 
--- Biến Anti NextBot
+-- =============================================
+-- CHỐNG NEXTBOT
+-- =============================================
 local AntiNextBot = false
 local TeleportConnection = nil
 local SkyPositions = {}
@@ -50,12 +52,7 @@ local CurrentSkyPos = nil
 local IsSpecialRound = false
 local BotPositions = {}
 
--- Biến Anti Died
-local AntiDied = false
-local AntiDiedConnection = nil
-local DeathCheckConnection = nil
-
--- Tạo vị trí trên trời ngẫu nhiên
+-- Tạo vị trí trên trời
 local function GenerateSkyPositions()
     SkyPositions = {}
     for i = 1, 50 do
@@ -67,7 +64,7 @@ local function GenerateSkyPositions()
 end
 
 -- Kiểm tra vị trí an toàn
-local function IsPositionSafeFast(position, minDistance)
+local function IsPositionSafe(position, minDistance)
     local LocalPlayer = game.Players.LocalPlayer
     
     for _, player in ipairs(game.Players:GetPlayers()) do
@@ -77,7 +74,7 @@ local function IsPositionSafeFast(position, minDistance)
                 local enemyPos = enemyChar.HumanoidRootPart.Position
                 local dist = (position - enemyPos).Magnitude
                 if dist < minDistance then
-                    return false, enemyPos
+                    return false
                 end
             end
         end
@@ -90,157 +87,23 @@ local function IsPositionSafeFast(position, minDistance)
                 local enemyPos = obj.HumanoidRootPart.Position
                 local dist = (position - enemyPos).Magnitude
                 if dist < minDistance then
-                    return false, enemyPos
+                    return false
                 end
             end
         end
     end
     
-    return true, nil
+    return true
 end
 
--- Lấy tất cả bot
-local function GetAllBots()
-    local bots = {}
-    local LocalPlayer = game.Players.LocalPlayer
-    
-    for _, player in ipairs(game.Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local enemyChar = player.Character
-            if enemyChar and enemyChar:FindFirstChild("HumanoidRootPart") then
-                local enemyPos = enemyChar.HumanoidRootPart.Position
-                
-                if not BotPositions[player] then
-                    BotPositions[player] = {
-                        positions = {},
-                        speed = 0,
-                        direction = Vector3.new(0, 0, 0)
-                    }
-                end
-                
-                table.insert(bots, {
-                    name = player.Name,
-                    position = enemyPos,
-                    velocity = Vector3.new(0, 0, 0),
-                    data = BotPositions[player]
-                })
-            end
-        end
-    end
-    
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
-            local name = obj.Name:lower()
-            if name:find("bot") or name:find("next") or name:find("npc") or name:find("enemy") then
-                local enemyPos = obj.HumanoidRootPart.Position
-                
-                local botKey = "npc_" .. obj.Name
-                if not BotPositions[botKey] then
-                    BotPositions[botKey] = {
-                        positions = {},
-                        speed = 0,
-                        direction = Vector3.new(0, 0, 0)
-                    }
-                end
-                
-                table.insert(bots, {
-                    name = obj.Name,
-                    position = enemyPos,
-                    velocity = Vector3.new(0, 0, 0),
-                    data = BotPositions[botKey]
-                })
-            end
-        end
-    end
-    
-    return bots
-end
-
--- Tính tốc độ bot
-local function CalculateBotSpeed(bot)
-    local botData = bot.data
-    local currentPos = bot.position
-    
-    table.insert(botData.positions, currentPos)
-    if #botData.positions > 5 then
-        table.remove(botData.positions, 1)
-    end
-    
-    if #botData.positions >= 2 then
-        local lastPos = botData.positions[#botData.positions - 1]
-        local timeDiff = 0.1
-        
-        if lastPos then
-            local velocity = (currentPos - lastPos) / timeDiff
-            local speed = velocity.Magnitude
-            botData.speed = speed
-            botData.direction = velocity.Unit
-            return speed, velocity.Unit
-        end
-    end
-    
-    return 0, Vector3.new(0, 0, 0)
-end
-
--- Dịch chuyển khẩn cấp
-local function EmergencyTeleportNow()
+-- Dịch chuyển lên trời
+local function TeleportToSky()
     local LocalPlayer = game.Players.LocalPlayer
     local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then
-        return
-    end
+    if not character then return end
     
-    local rootPart = character.HumanoidRootPart
-    
-    local emergencyPos = Vector3.new(
-        math.random(-400, 400),
-        math.random(300, 500),
-        math.random(-400, 400)
-    )
-    
-    local safePos = nil
-    local attempts = 0
-    local maxAttempts = 20
-    
-    while safePos == nil and attempts < maxAttempts do
-        attempts = attempts + 1
-        local randomPos = Vector3.new(
-            math.random(-350, 350),
-            math.random(250, 450),
-            math.random(-350, 350)
-        )
-        
-        local isSafe, _ = IsPositionSafeFast(randomPos, 60)
-        if isSafe then
-            safePos = randomPos
-            break
-        end
-    end
-    
-    if not safePos then
-        safePos = emergencyPos
-    end
-    
-    rootPart.CFrame = CFrame.new(safePos)
-    CurrentSkyPos = safePos
-    
-    local humanoid = character:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = false
-    end
-    
-    print("[Chống NextBot] DỊCH CHUYỂN KHẨN CẤP!")
-end
-
--- Dịch chuyển lên trời nhanh
-local function TeleportToSkyFast()
-    local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then
-        return
-    end
-    
-    local rootPart = character.HumanoidRootPart
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
     
     if #SkyPositions == 0 then
         GenerateSkyPositions()
@@ -248,14 +111,12 @@ local function TeleportToSkyFast()
     
     local safePos = nil
     local attempts = 0
-    local maxAttempts = 15
     
-    while safePos == nil and attempts < maxAttempts do
+    while safePos == nil and attempts < 20 do
         attempts = attempts + 1
         local randomPos = SkyPositions[math.random(1, #SkyPositions)]
         
-        local isSafe, _ = IsPositionSafeFast(randomPos, 50)
-        if isSafe then
+        if IsPositionSafe(randomPos, 50) then
             safePos = randomPos
             break
         else
@@ -283,91 +144,75 @@ local function TeleportToSkyFast()
     end
 end
 
--- Kiểm tra và phản ứng nhanh
-local function CheckAndReactFast()
-    if not AntiNextBot then
-        return
-    end
+-- Dịch chuyển khẩn cấp
+local function EmergencyTeleport()
+    local LocalPlayer = game.Players.LocalPlayer
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    local safePos = Vector3.new(
+        math.random(-400, 400),
+        math.random(300, 500),
+        math.random(-400, 400)
+    )
+    
+    rootPart.CFrame = CFrame.new(safePos)
+    CurrentSkyPos = safePos
+    
+    print("[NextBot] Dịch chuyển khẩn cấp!")
+end
+
+-- Kiểm tra và phản ứng
+local function CheckAndReact()
+    if not AntiNextBot then return end
     
     local LocalPlayer = game.Players.LocalPlayer
     local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then
-        return
-    end
+    if not character then return end
     
-    local rootPart = character.HumanoidRootPart
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
     local currentPos = rootPart.Position
     
+    -- Nếu ở dưới đất -> dịch chuyển lên trời
     if currentPos.Y < 50 then
-        print("[Chống NextBot] Đang ở dưới đất! Dịch chuyển khẩn cấp!")
-        EmergencyTeleportNow()
+        TeleportToSky()
         return
     end
     
-    local bots = GetAllBots()
-    local nearestBot = nil
+    -- Kiểm tra bot gần
+    local botNearby = false
     local nearestDist = math.huge
-    local approachingBot = nil
-    local fastestBot = nil
-    local fastestSpeed = 0
     
-    for _, bot in ipairs(bots) do
-        local dist = (currentPos - bot.position).Magnitude
-        
-        local speed, direction = CalculateBotSpeed(bot)
-        
-        if speed > fastestSpeed then
-            fastestSpeed = speed
-            fastestBot = bot
-        end
-        
-        if speed > 5 then
-            local dirToBot = (bot.position - currentPos).Unit
-            local dotProduct = direction:Dot(dirToBot)
-            
-            if dotProduct > 0.3 then
-                if dist < 100 then
-                    approachingBot = bot
-                    print("[Chống NextBot] Bot đang tiến đến! Tốc độ: " .. tostring(speed))
+    for _, player in ipairs(game.Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local enemyChar = player.Character
+            if enemyChar and enemyChar:FindFirstChild("HumanoidRootPart") then
+                local dist = (currentPos - enemyChar.HumanoidRootPart.Position).Magnitude
+                if dist < nearestDist then
+                    nearestDist = dist
+                end
+                if dist < 45 then
+                    botNearby = true
                     break
                 end
             end
         end
-        
-        if dist < nearestDist then
-            nearestDist = dist
-            nearestBot = bot
-        end
     end
     
-    if approachingBot then
-        print("[Chống NextBot] KHẨN CẤP: Bot đang tiến đến nhanh!")
-        EmergencyTeleportNow()
+    if botNearby then
+        print("[NextBot] Phát hiện bot gần! Dịch chuyển...")
+        EmergencyTeleport()
         return
     end
     
-    if nearestDist < 45 then
-        print("[Chống NextBot] KHẨN CẤP: Bot quá gần! (" .. tostring(nearestDist) .. " studs)")
-        EmergencyTeleportNow()
-        return
-    end
-    
-    if fastestBot and fastestSpeed > 20 then
-        local dirToFastBot = (fastestBot.position - currentPos).Unit
-        local dirToFastBotOld = (fastestBot.data.positions[#fastestBot.data.positions - 1] - currentPos).Unit
-        
-        if dirToFastBot and dirToFastBotOld then
-            local dotProduct = dirToFastBot:Dot(dirToFastBotOld)
-            if dotProduct > 0.5 and nearestDist < 120 then
-                print("[Chống NextBot] KHẨN CẤP: Bot chạy nhanh phát hiện! Tốc độ: " .. tostring(fastestSpeed))
-                EmergencyTeleportNow()
-                return
-            end
-        end
-    end
-    
+    -- Dịch chuyển định kỳ
     local currentTime = tick()
-    local teleportInterval = IsSpecialRound and 3 or 5
+    local interval = IsSpecialRound and 3 or 5
     
     if not character:FindFirstChild("LastTeleportTime") then
         local timeVal = Instance.new("NumberValue")
@@ -376,23 +221,16 @@ local function CheckAndReactFast()
         timeVal.Parent = character
     else
         local lastTime = character.LastTeleportTime.Value
-        if currentTime - lastTime > teleportInterval then
-            print("[Chống NextBot] Dịch chuyển định kỳ (" .. (IsSpecialRound and "Đặc biệt" or "Bình thường") .. " vòng)")
-            TeleportToSkyFast()
+        if currentTime - lastTime > interval then
+            TeleportToSky()
             character.LastTeleportTime.Value = currentTime
         end
-    end
-    
-    local isSafe, unsafePos = IsPositionSafeFast(currentPos, 40)
-    if not isSafe then
-        print("[Chống NextBot] Vị trí không an toàn! Đang dịch chuyển...")
-        TeleportToSkyFast()
     end
 end
 
 -- Kiểm tra vòng đặc biệt
-local function CheckRoundType()
-    local gameState = game:GetService("Workspace"):FindFirstChild("GameState")
+local function CheckSpecialRound()
+    local gameState = workspace:FindFirstChild("GameState")
     if gameState then
         local stateText = tostring(gameState.Value or "")
         if stateText:lower():find("special") or stateText:lower():find("boss") then
@@ -403,22 +241,78 @@ local function CheckRoundType()
     end
 end
 
--- ===== CHỐNG GỤC - PHẢN ỨNG SIÊU NHANH =====
-
--- Kiểm tra người chơi đã chết hẳn chưa
-local function IsPlayerFullyDead(character)
-    if not character then
-        return true
+-- Toggle Chống NextBot
+MainSection:NewToggle("Chống NextBot {An toàn 21%}", "Tự động tránh NextBot", function(state)
+    AntiNextBot = state
+    
+    if AntiNextBot then
+        GenerateSkyPositions()
+        wait(0.5)
+        TeleportToSky()
+        
+        TeleportConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            if AntiNextBot then
+                CheckSpecialRound()
+                CheckAndReact()
+            end
+        end)
+        
+        print("[NextBot] Đã bật")
+    else
+        if TeleportConnection then
+            TeleportConnection:Disconnect()
+            TeleportConnection = nil
+        end
+        
+        -- Về mặt đất
+        local LocalPlayer = game.Players.LocalPlayer
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.CFrame = CFrame.new(Vector3.new(0, 5, 0))
+        end
+        
+        print("[NextBot] Đã tắt")
     end
+end)
+
+-- =============================================
+-- CHỐNG GỤC
+-- =============================================
+local AntiDied = false
+local DeathCheckConnection = nil
+local AntiDiedConnection = nil
+
+-- Kiểm tra bị gục
+local function IsPlayerDowned(character)
+    if not character then return false end
     
     local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then
-        return true
-    end
+    if not humanoid then return false end
     
     if humanoid.Health <= 0 then
         local downedState = character:FindFirstChild("Downed")
         if downedState then
+            return true
+        end
+        
+        local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+        if torso and humanoid:GetState() == Enum.HumanoidStateType.Physics then
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- Kiểm tra chết hẳn
+local function IsPlayerDead(character)
+    if not character then return true end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return true end
+    
+    if humanoid.Health <= 0 then
+        if character:FindFirstChild("Downed") then
             return false
         end
         
@@ -426,251 +320,80 @@ local function IsPlayerFullyDead(character)
             return true
         end
         
-        local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-        if not torso then
-            return true
-        end
-        
         if humanoid:GetState() == Enum.HumanoidStateType.Dead then
             return true
         end
-        
-        for _, child in ipairs(character:GetChildren()) do
-            if child.Name:lower():find("dead") or child.Name:lower():find("death") then
-                return true
-            end
-        end
-        
-        return false
     end
     
     return false
 end
 
--- Kiểm tra người chơi đang bị gục
-local function IsPlayerDowned(character)
-    if not character then
-        return false
-    end
-    
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then
-        return false
-    end
-    
-    if humanoid.Health <= 0 then
-        local downedState = character:FindFirstChild("Downed")
-        if downedState then
-            return true
-        end
-        
-        local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-        if torso then
-            if humanoid:GetState() == Enum.HumanoidStateType.Physics then
-                return true
-            end
-        end
-    end
-    
-    return false
-end
-
--- Dịch chuyển lên trời an toàn
-local function TeleportToSafeSky()
+-- Hồi sinh
+local function RevivePlayer()
     local LocalPlayer = game.Players.LocalPlayer
     local character = LocalPlayer.Character
     
     if not character then
-        print("[Chống Gục] Không tìm thấy nhân vật!")
-        return false
-    end
-    
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then
-        print("[Chống Gục] Không tìm thấy RootPart!")
-        return false
-    end
-    
-    local safePos = Vector3.new(
-        math.random(-300, 300),
-        math.random(250, 450),
-        math.random(-300, 300)
-    )
-    
-    local attempts = 0
-    while attempts < 15 do
-        attempts = attempts + 1
-        local testPos = Vector3.new(
-            math.random(-300, 300),
-            math.random(250, 450),
-            math.random(-300, 300)
-        )
-        
-        local isSafe, _ = IsPositionSafeFast(testPos, 60)
-        if isSafe then
-            safePos = testPos
-            break
-        end
-    end
-    
-    rootPart.CFrame = CFrame.new(safePos)
-    CurrentSkyPos = safePos
-    
-    print("[Chống Gục] Đã dịch chuyển lên trời an toàn!")
-    return true
-end
-
--- Hồi sinh người chơi sau khi dịch chuyển
-local function RevivePlayerAfterTeleport(character)
-    if not character then
-        print("[Chống Gục] Không có nhân vật để hồi sinh!")
-        return false
+        print("[Chống Gục] Không có nhân vật")
+        return
     end
     
     local humanoid = character:FindFirstChild("Humanoid")
     if not humanoid then
-        print("[Chống Gục] Không tìm thấy Humanoid!")
-        return false
+        print("[Chống Gục] Không có Humanoid")
+        return
     end
     
     print("[Chống Gục] Đang hồi sinh...")
     
+    -- Dịch chuyển lên trời
     pcall(function()
-        humanoid.Health = 100
-        print("[Chống Gục] Đã hồi máu về 100")
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            local pos = Vector3.new(
+                math.random(-300, 300),
+                math.random(250, 450),
+                math.random(-300, 300)
+            )
+            rootPart.CFrame = CFrame.new(pos)
+            print("[Chống Gục] Đã dịch chuyển lên trời")
+        end
     end)
     
+    -- Hồi máu
     pcall(function()
-        local downedState = character:FindFirstChild("Downed")
-        if downedState then
-            downedState:Destroy()
+        humanoid.Health = 100
+        print("[Chống Gục] Đã hồi máu")
+    end)
+    
+    -- Xóa trạng thái gục
+    pcall(function()
+        local downed = character:FindFirstChild("Downed")
+        if downed then
+            downed:Destroy()
             print("[Chống Gục] Đã xóa trạng thái gục")
         end
     end)
     
-    pcall(function()
-        local deathAnim = character:FindFirstChild("DeathAnim")
-        if deathAnim then
-            deathAnim:Destroy()
-            print("[Chống Gục] Đã xóa animation chết")
-        end
-    end)
-    
-    pcall(function()
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
-        humanoid.PlatformStand = false
-        print("[Chống Gục] Đã reset trạng thái Humanoid")
-    end)
-    
+    -- Đứng dậy
     pcall(function()
         humanoid.Sit = false
-        humanoid.AutoRotate = true
-        print("[Chống Gục] Đã bắt nhân vật đứng dậy")
+        humanoid.PlatformStand = false
+        print("[Chống Gục] Đã đứng dậy")
     end)
     
-    pcall(function()
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
-        print("[Chống Gục] Đã khôi phục di chuyển")
-    end)
-    
+    -- Nếu vẫn chết thì respawn
     wait(0.2)
     if humanoid.Health <= 0 then
-        print("[Chống Gục] Hồi sinh thất bại! Đang hồi sinh lại...")
-        local LocalPlayer = game.Players.LocalPlayer
+        print("[Chống Gục] Hồi sinh thất bại, respawn...")
         LocalPlayer:LoadCharacter()
-        
-        wait(0.3)
-        local newChar = LocalPlayer.Character
-        if newChar and newChar:FindFirstChild("HumanoidRootPart") then
-            local rootPart = newChar.HumanoidRootPart
-            local pos = Vector3.new(
-                math.random(-300, 300),
-                math.random(250, 450),
-                math.random(-300, 300)
-            )
-            rootPart.CFrame = CFrame.new(pos)
-        end
-        print("[Chống Gục] Đã hồi sinh lại thành công")
-        return true
-    end
-    
-    print("[Chống Gục] Hồi sinh thành công!")
-    return true
-end
-
--- Hồi sinh khẩn cấp
-local function EmergencyRevive()
-    local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    
-    if not character then
-        print("[Chống Gục] Không tìm thấy nhân vật để hồi sinh khẩn cấp!")
-        return
-    end
-    
-    local isDowned = IsPlayerDowned(character)
-    local isDead = IsPlayerFullyDead(character)
-    
-    if isDowned then
-        print("[Chống Gục] KHẨN CẤP: Người chơi đang bị gục!")
-        print("[Chống Gục] Loại: GỤC (có thể hồi sinh)")
-        
-        -- Bước 1: Dịch chuyển lên trời ngay lập tức
-        local teleported = TeleportToSafeSky()
-        if teleported then
-            print("[Chống Gục] Bước 1: Đã dịch chuyển lên trời!")
-        end
-        
-        -- Bước 2: Hồi sinh ngay sau khi dịch chuyển
-        wait(0.05)
-        local revived = RevivePlayerAfterTeleport(character)
-        if revived then
-            print("[Chống Gục] Bước 2: Hồi sinh thành công!")
-            print("[Chống Gục] TRẠNG THÁI: ĐÃ HỒI SINH")
-        end
-        
-    elseif isDead then
-        print("[Chống Gục] KHẨN CẤP: Người chơi đã chết hẳn!")
-        print("[Chống Gục] Loại: CHẾT (không thể hồi sinh)")
-        
-        pcall(function()
-            LocalPlayer:LoadCharacter()
-            print("[Chống Gục] Đã hồi sinh lại")
-        end)
-        
-        wait(0.3)
-        local newChar = LocalPlayer.Character
-        if newChar and newChar:FindFirstChild("HumanoidRootPart") then
-            local rootPart = newChar.HumanoidRootPart
-            local pos = Vector3.new(
-                math.random(-300, 300),
-                math.random(250, 450),
-                math.random(-300, 300)
-            )
-            rootPart.CFrame = CFrame.new(pos)
-            print("[Chống Gục] Nhân vật mới đã dịch chuyển lên trời")
-        end
-        
-        wait(0.1)
-        local newHumanoid = newChar and newChar:FindFirstChild("Humanoid")
-        if newHumanoid then
-            pcall(function()
-                newHumanoid.Health = 100
-                print("[Chống Gục] Đã tự động hồi máu cho nhân vật mới")
-            end)
-        end
-        
-        print("[Chống Gục] TRẠNG THÁI: ĐÃ HỒI SINH LẠI")
     end
 end
 
--- Bắt đầu kiểm tra gục/chết
+-- Bắt đầu kiểm tra
 local function StartDeathCheck()
     if DeathCheckConnection then
         DeathCheckConnection:Disconnect()
-        DeathCheckConnection = nil
     end
     
     DeathCheckConnection = game:GetService("RunService").Heartbeat:Connect(function()
@@ -682,14 +405,14 @@ local function StartDeathCheck()
                 local humanoid = character:FindFirstChild("Humanoid")
                 if humanoid then
                     local isDowned = IsPlayerDowned(character)
-                    local isDead = IsPlayerFullyDead(character)
+                    local isDead = IsPlayerDead(character)
                     
                     if isDowned then
-                        print("[Chống Gục] PHÁT HIỆN GỤC! Đang hồi sinh khẩn cấp...")
-                        EmergencyRevive()
+                        print("[Chống Gục] Phát hiện bị gục!")
+                        RevivePlayer()
                     elseif isDead then
-                        print("[Chống Gục] PHÁT HIỆN CHẾT! Đang hồi sinh lại...")
-                        EmergencyRevive()
+                        print("[Chống Gục] Phát hiện chết!")
+                        RevivePlayer()
                     end
                 end
             end
@@ -697,148 +420,34 @@ local function StartDeathCheck()
     end)
 end
 
--- Theo dõi sự kiện hồi sinh
-local function MonitorDeathEvents()
-    if AntiDiedConnection then
-        AntiDiedConnection:Disconnect()
-        AntiDiedConnection = nil
-    end
-    
-    local LocalPlayer = game.Players.LocalPlayer
-    
-    AntiDiedConnection = LocalPlayer.CharacterAdded:Connect(function(character)
-        if AntiDied then
-            print("[Chống Gục] Nhân vật mới đã xuất hiện!")
-            wait(0.1)
-            
-            local humanoid = character:FindFirstChild("Humanoid")
-            if humanoid then
-                pcall(function()
-                    humanoid.Health = 100
-                    print("[Chống Gục] Đã tự động hồi máu khi xuất hiện")
-                end)
-            end
-            
-            wait(0.1)
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                pcall(function()
-                    local safePos = Vector3.new(
-                        math.random(-300, 300),
-                        math.random(250, 450),
-                        math.random(-300, 300)
-                    )
-                    rootPart.CFrame = CFrame.new(safePos)
-                    print("[Chống Gục] Đã dịch chuyển lên trời khi xuất hiện")
-                end)
-            end
-        end
-    end)
-end
-
 -- Toggle Chống Gục
-MainSection:NewToggle("Chống Gục bởi NextBot", "Tự động dịch chuyển và hồi sinh khi bị gục", function(state)
+MainSection:NewToggle("Chống Gục bởi NextBot", "Tự động hồi sinh khi bị gục", function(state)
     AntiDied = state
     
     if AntiDied then
-        print("[Chống Gục] ĐÃ BẬT - CHẾ ĐỘ SIÊU NHANH")
-        print("[Chống Gục] Phát hiện: THỜI GIAN THỰC")
-        print("[Chống Gục] Phản ứng: TỨC THỜI")
-        
         StartDeathCheck()
-        MonitorDeathEvents()
-        
-        wait(0.2)
-        local LocalPlayer = game.Players.LocalPlayer
-        local character = LocalPlayer.Character
-        if character then
-            local isDowned = IsPlayerDowned(character)
-            local isDead = IsPlayerFullyDead(character)
-            
-            if isDowned then
-                print("[Chống Gục] Trạng thái hiện tại: GỤC - Đang hồi sinh...")
-                EmergencyRevive()
-            elseif isDead then
-                print("[Chống Gục] Trạng thái hiện tại: CHẾT - Đang hồi sinh lại...")
-                EmergencyRevive()
-            else
-                print("[Chống Gục] Trạng thái hiện tại: ĐANG SỐNG")
-            end
-        end
-        
-        print("[Chống Gục] TRẠNG THÁI: SẴN SÀNG")
+        print("[Chống Gục] Đã bật")
     else
-        print("[Chống Gục] Đã tắt")
-        
         if DeathCheckConnection then
             DeathCheckConnection:Disconnect()
             DeathCheckConnection = nil
         end
-        
-        if AntiDiedConnection then
-            AntiDiedConnection:Disconnect()
-            AntiDiedConnection = nil
-        end
+        print("[Chống Gục] Đã tắt")
     end
 end)
 
--- Toggle Chống NextBot
-MainSection:NewToggle("Chống NextBot {An toàn 21%}", "Phản ứng siêu nhanh với NextBot", function(state)
-    AntiNextBot = state
-    
-    if AntiNextBot then
-        GenerateSkyPositions()
-        wait(0.2)
-        TeleportToSkyFast()
-        
-        TeleportConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if AntiNextBot then
-                CheckRoundType()
-                CheckAndReactFast()
-            end
-        end)
-        
-        print("[Chống NextBot] Đã bật - CHẾ ĐỘ PHẢN ỨNG SIÊU NHANH")
-        print("[Chống NextBot] Phát hiện vòng đặc biệt: Đang hoạt động")
-        print("[Chống NextBot] Dịch chuyển khẩn cấp: Sẵn sàng")
-    else
-        if TeleportConnection then
-            TeleportConnection:Disconnect()
-            TeleportConnection = nil
-        end
-        
-        local LocalPlayer = game.Players.LocalPlayer
-        local character = LocalPlayer.Character
-        if character and character:FindFirstChild("HumanoidRootPart") then
-            local rootPart = character.HumanoidRootPart
-            rootPart.CFrame = CFrame.new(Vector3.new(0, 5, 0))
-        end
-        
-        if character then
-            for _, child in ipairs(character:GetChildren()) do
-                if child.Name == "LastTeleportTime" or child.Name == "LastBotPos" then
-                    child:Destroy()
-                end
-            end
-        end
-        
-        BotPositions = {}
-        
-        print("[Chống NextBot] Đã tắt")
-    end
-end)
-
--- Phần thông tin
+-- =============================================
+-- THÔNG TIN
+-- =============================================
 local InfoSection = MainTab:NewSection("Thông tin")
 
-InfoSection:NewLabel("Tự động reset AFK mỗi 30s")
-InfoSection:NewLabel("NextBot: Dịch chuyển mỗi 5s")
-InfoSection:NewLabel("Vòng đặc biệt: Dịch chuyển mỗi 3s")
-InfoSection:NewLabel("Chống Gục: Dịch chuyển -> Hồi sinh")
-InfoSection:NewLabel("Phát hiện gục: Hồi sinh tức thời")
+InfoSection:NewLabel("Made by Nate & Ngọt")
 InfoSection:NewLabel("Tương thích: Delta v2.731")
-InfoSection:NewLabel("Tác giả: Nate & Ngọt")
 InfoSection:NewLabel("⚠️ An toàn 21% = 21% tỷ lệ chết")
-InfoSection:NewLabel("⚡ Chế độ phản ứng siêu nhanh")
+InfoSection:NewLabel("⚡ Phản ứng siêu nhanh")
 
-print("[Evade Menu] Đã tải Kavo UI thành công!")
+print("========================================")
+print("[Evade Menu] Đã tải thành công!")
+print("[Evade Menu] Tác giả: Nate & Ngọt")
+print("[Evade Menu] Tương thích: Delta v2.731")
+print("========================================")
