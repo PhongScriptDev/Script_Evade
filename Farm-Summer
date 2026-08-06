@@ -475,35 +475,32 @@ MainTab:CreateToggle({
 })
 
 -- =============================================
--- AUTO FARM EVENT - SỬA LỖI
+-- AUTO FARM EVENT - QUÉT TOÀN BỘ MAP
 -- =============================================
 local AutoFarm = false
 local FarmConnection = nil
 local CollectedCount = 0
-local EventItems = {}
-local CurrentTarget = nil
-local IsMoving = false
+local TotalBubbles = 0
 local FarmCooldown = 0
+local CurrentIndex = 1
+local AllBubbles = {}
+local IsScanning = false
 
--- Tìm vật phẩm sự kiện (BÓNG BAY)
-local function FindEventItems()
-    EventItems = {}
+-- QUÉT TOÀN BỘ MAP TÌM BUBBLE
+local function ScanAllBubbles()
+    AllBubbles = {}
     local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    if not character then return EventItems end
     
-    local rootPos = character:FindFirstChild("HumanoidRootPart")
-    if not rootPos then return EventItems end
+    print("[AutoFarm] 🔍 Đang quét toàn bộ map tìm Bubble...")
     
-    -- Tìm bóng bay (balloon) - vật phẩm sự kiện mùa hè 2026
+    -- Quét toàn bộ workspace
     for _, obj in ipairs(workspace:GetDescendants()) do
-        -- Kiểm tra tên có chứa "balloon" hoặc "bong"
-        local name = obj.Name:lower()
-        if name:find("balloon") or name:find("bong") or name:find("event") then
-            -- Lấy vị trí
+        local name = obj.Name or ""
+        if name:lower():find("bubble") then
             local position = nil
             
-            if obj:IsA("Part") or obj:IsA("MeshPart") then
+            -- Lấy vị trí
+            if obj:IsA("BasePart") then
                 position = obj.Position
             elseif obj:IsA("Model") then
                 if obj:FindFirstChild("PrimaryPart") then
@@ -513,11 +510,10 @@ local function FindEventItems()
                 elseif obj:FindFirstChild("Head") then
                     position = obj.Head.Position
                 else
-                    -- Lấy vị trí trung bình
                     local sumPos = Vector3.new(0, 0, 0)
                     local count = 0
                     for _, part in ipairs(obj:GetChildren()) do
-                        if part:IsA("Part") or part:IsA("MeshPart") then
+                        if part:IsA("BasePart") then
                             sumPos = sumPos + part.Position
                             count = count + 1
                         end
@@ -529,31 +525,24 @@ local function FindEventItems()
             end
             
             if position then
-                local dist = (rootPos.Position - position).Magnitude
-                -- Chỉ lấy vật phẩm trong bán kính 300 studs
-                if dist < 300 then
-                    table.insert(EventItems, {
-                        object = obj,
-                        position = position,
-                        distance = dist,
-                        name = obj.Name
-                    })
-                end
+                table.insert(AllBubbles, {
+                    object = obj,
+                    position = position,
+                    name = obj.Name,
+                    collected = false
+                })
+                print("[AutoFarm] 🎈 Tìm thấy Bubble: " .. obj.Name .. " tại " .. tostring(position))
             end
         end
     end
     
-    -- Sắp xếp theo khoảng cách gần nhất
-    table.sort(EventItems, function(a, b)
-        return a.distance < b.distance
-    end)
-    
-    print("[AutoFarm] 🎈 Tìm thấy " .. #EventItems .. " bóng bay")
-    return EventItems
+    TotalBubbles = #AllBubbles
+    print("[AutoFarm] ✅ Quét hoàn tất! Tìm thấy " .. TotalBubbles .. " Bubble trên toàn bộ map")
+    return AllBubbles
 end
 
--- Di chuyển đến vị trí (KHÔNG TELEPORT)
-local function MoveToPosition(targetPos)
+-- TELEPORT ĐẾN BUBBLE
+local function TeleportToBubble(targetPos)
     local LocalPlayer = game.Players.LocalPlayer
     local character = LocalPlayer.Character
     if not character then return false end
@@ -561,34 +550,14 @@ local function MoveToPosition(targetPos)
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return false end
     
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return false end
-    
-    local currentPos = rootPart.Position
-    local dist = (currentPos - targetPos).Magnitude
-    
-    if dist < 8 then
-        return true -- Đã đến gần
-    end
-    
-    -- DI CHUYỂN TỪ TỪ (KHÔNG TELEPORT)
-    local moveDirection = (targetPos - currentPos).Unit
-    local moveSpeed = 16 -- Tốc độ di chuyển
-    local step = math.min(dist, moveSpeed * 0.5)
-    local newPos = currentPos + moveDirection * step
-    
-    -- Giữ nguyên Y để không bị rơi
-    newPos = Vector3.new(newPos.X, currentPos.Y, newPos.Z)
-    
-    rootPart.CFrame = CFrame.new(newPos)
-    return false
+    rootPart.CFrame = CFrame.new(targetPos)
+    return true
 end
 
--- Nhặt bóng bay
-local function CollectBalloon(item)
+-- NHẶT BUBBLE
+local function CollectBubble(item)
     if not item or not item.object then return false end
-    
-    print("[AutoFarm] 🎈 Đang nhặt: " .. item.name)
+    if item.collected then return false end
     
     local success = false
     
@@ -610,31 +579,29 @@ local function CollectBalloon(item)
         end)
     end
     
-    -- Cách 3: Di chuyển đến gần để tự động nhặt
+    -- Cách 3: Chạm vào
     if not success then
-        local LocalPlayer = game.Players.LocalPlayer
-        local character = LocalPlayer.Character
-        if character and character:FindFirstChild("HumanoidRootPart") then
-            local root = character.HumanoidRootPart
-            root.CFrame = CFrame.new(item.position + Vector3.new(0, 0, 0))
-            success = true
-        end
+        success = true
     end
     
     if success then
+        item.collected = true
         CollectedCount = CollectedCount + 1
-        print("[AutoFarm] ✅ Đã nhặt: " .. item.name .. " (Tổng: " .. CollectedCount .. ")")
-        ShowNotification("🎈 Đã nhặt!", "Bóng bay #" .. CollectedCount, 2, Color3.fromRGB(0, 255, 255))
+        print("[AutoFarm] ✅ Đã nhặt Bubble #" .. CollectedCount .. ": " .. item.name)
+        ShowNotification("🎈 Đã nhặt!", "Bubble #" .. CollectedCount .. "/" .. TotalBubbles, 2, Color3.fromRGB(0, 255, 255))
+        UpdateFarmLabel()
+        return true
     end
     
-    return success
+    return false
 end
 
--- Farm loop - Klocal function FarmLoop()
+-- FARM LOOP - QUÉT TOÀN BỘ MAP
+local function FarmLoop()
     if not AutoFarm then return end
     
-    -- Cooldown để không spam
-    if tick() - FarmCooldown < 2 then
+    -- Chống spam
+    if tick() - FarmCooldown < 0.8 then
         return
     end
     
@@ -642,61 +609,78 @@ end
     local character = LocalPlayer.Character
     if not character then return end
     
-    -- Tìm vật phẩm
-    local items = FindEventItems()
+    -- Nếu chưa có danh sách Bubble hoặc đã nhặt hết -> Quét lại
+    if #AllBubbles == 0 or CurrentIndex > #AllBubbles then
+        ScanAllBubbles()
+        CurrentIndex = 1
+        
+        if #AllBubbles == 0 then
+            print("[AutoFarm] ⚠️ Không tìm thấy Bubble nào!")
+            FarmCooldown = tick()
+            return
+        end
+        
+        ShowNotification("🎈 Đã quét!", "Tìm thấy " .. #AllBubbles .. " Bubble trên map", 3, Color3.fromRGB(0, 255, 255))
+    end
     
-    if #items == 0 then
-        print("[AutoFarm] ⚠️ Không tìm thấy bóng bay nào!")
+    -- Tìm Bubble chưa nhặt
+    local target = nil
+    for i = CurrentIndex, #AllBubbles do
+        if not AllBubbles[i].collected then
+            target = AllBubbles[i]
+            CurrentIndex = i
+            break
+        end
+    end
+    
+    -- Nếu tất cả đã nhặt -> reset
+    if not target then
+        print("[AutoFarm] 🎉 Đã nhặt hết tất cả Bubble! Đang quét lại...")
+        CurrentIndex = #AllBubbles + 1
         FarmCooldown = tick()
         return
     end
     
-    -- Lấy vật phẩm gần nhất
-    local target = items[1]
-    if not target then return end
+    -- TELEPORT ĐẾN BUBBLE
+    TeleportToBubble(target.position)
+    print("[AutoFarm] 🚀 Teleport đến Bubble #" .. CurrentIndex .. ": " .. target.name)
     
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
+    wait(0.2)
     
-    local currentPos = rootPart.Position
-    local dist = (currentPos - target.position).Magnitude
+    -- Nhặt Bubble
+    CollectBubble(target)
     
-    if dist < 10 then
-        -- Ở gần -> nhặt
-        CollectBalloon(target)
-        FarmCooldown = tick()
-        wait(0.5)
-    else
-        -- Di chuyển đến gần (KHÔNG TELEPORT)
-        print("[AutoFarm] 🚶 Đang di chuyển đến bóng bay (Khoảng cách: " .. tostring(math.floor(dist)) .. " studs)")
-        MoveToPosition(target.position)
-        FarmCooldown = tick()
-    end
+    -- Chuyển sang Bubble tiếp theo
+    CurrentIndex = CurrentIndex + 1
+    FarmCooldown = tick()
 end
 
 -- Toggle Auto Farm
 MainTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
-    Description = "Tự động tìm và nhặt bóng bay (Sự kiện mùa hè 2026)",
+    Description = "QUÉT TOÀN BỘ MAP và teleport đến từng Bubble",
     CurrentValue = false,
     Callback = function(Value)
         AutoFarm = Value
         
         if AutoFarm then
             CollectedCount = 0
-            print("[AutoFarm] ===== ĐÃ BẬT =====")
-            ShowNotification("🎈 Auto Farm", "Đang tìm bóng bay...", 3, Color3.fromRGB(0, 255, 255))
+            CurrentIndex = 1
+            AllBubbles = {}
             
-            -- Tìm vật phẩm ngay
+            print("[AutoFarm] ===== ĐÃ BẬT =====")
+            ShowNotification("🎈 Auto Farm", "Đang quét toàn bộ map...", 3, Color3.fromRGB(0, 255, 255))
+            
+            -- Quét toàn bộ map ngay lập tức
             wait(0.5)
-            local items = FindEventItems()
-            ShowNotification("🎈 Tìm thấy!", "Đã tìm thấy " .. #items .. " bóng bay trên map", 3, Color3.fromRGB(0, 255, 0))
+            ScanAllBubbles()
+            ShowNotification("🎈 Tìm thấy!", "Đã tìm thấy " .. TotalBubbles .. " Bubble trên toàn bộ map", 3, Color3.fromRGB(0, 255, 0))
             
             if FarmConnection then
                 FarmConnection:Disconnect()
             end
             
-            -- Chạy farm mỗi 1.5 giây (KHÔNG SPAM)
+            -- Chạy farm mỗi 0.8 giây
             FarmConnection = game:GetService("RunService").Stepped:Connect(function()
                 if AutoFarm then
                     pcall(function()
@@ -705,11 +689,11 @@ MainTab:CreateToggle({
                 end
             end)
             
-            print("[AutoFarm] ===== ĐANG CHẠY =====")
+            print("[AutoFarm] ===== ĐANG CHẠY - QUÉT TOÀN BỘ MAP =====")
             
         else
             print("[AutoFarm] ===== ĐÃ TẮT =====")
-            ShowNotification("❌ Auto Farm", "Đã tắt! Tổng: " .. CollectedCount .. " bóng bay", 3, Color3.fromRGB(255, 0, 0))
+            ShowNotification("❌ Auto Farm", "Đã tắt! Tổng: " .. CollectedCount .. "/" .. TotalBubbles .. " Bubble", 3, Color3.fromRGB(255, 0, 0))
             
             if FarmConnection then
                 FarmConnection:Disconnect()
@@ -720,21 +704,19 @@ MainTab:CreateToggle({
 })
 
 -- =============================================
--- LABEL THỐNG KÊ FARM
+-- THỐNG KÊ FARM
 -- =============================================
 local FarmSection = MainTab:CreateSection("📊 Thống kê Farm")
-local FarmLabel = MainTab:CreateLabel("🎈 Đã nhặt: 0 bóng bay")
+local FarmLabel = MainTab:CreateLabel("🎈 Đã nhặt: 0 / 0 Bubble")
 
--- Cập nhật thống kê
 local function UpdateFarmLabel()
     pcall(function()
         if FarmLabel then
-            FarmLabel:Set("🎈 Đã nhặt: " .. CollectedCount .. " bóng bay")
+            FarmLabel:Set("🎈 Đã nhặt: " .. CollectedCount .. " / " .. TotalBubbles .. " Bubble")
         end
     end)
 end
 
--- Cập nhật mỗi giây
 game:GetService("RunService").Heartbeat:Connect(function()
     UpdateFarmLabel()
 end)
@@ -747,9 +729,11 @@ MainTab:CreateLabel("👤 Tác giả: Nate & Ngọt")
 MainTab:CreateLabel("📱 Tương thích: Delta v2.731")
 MainTab:CreateLabel("⚠️ An toàn 21% = 21% tỷ lệ chết")
 MainTab:CreateLabel("⚡ Chế độ phản ứng siêu nhanh")
-MainTab:CreateLabel("🎈 Sự kiện: Mùa hè 2026")
+MainTab:CreateLabel("🎈 Sự kiện: Mùa hè 2026 (Bubble)")
+MainTab:CreateLabel("🔍 Chế độ: Quét toàn bộ map")
 
 print("========================================")
 print("[Evade Menu] Đã tải thành công!")
 print("[Evade Menu] Tác giả: Nate & Ngọt")
-print("========================================")HÔNG SPAM
+print("[Evade Menu] Auto Farm: Quét toàn bộ map")
+print("========================================")
