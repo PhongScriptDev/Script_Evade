@@ -73,6 +73,19 @@ local LastPosition = Vector3.new(0, 0, 0)
 local IsVoting = false
 local IsPaused = false
 local IsLoading = false
+local BubbleSpawnNotify = false
+
+-- ESP Variables
+local ESPBubble = false
+local ESPNextBot = false
+local ESPPlayers = false
+local ESPObjects = {}
+
+-- Anti Error Code Variables
+local AntiErrorCode = false
+local ErrorConnection = nil
+local RejoinAttempts = 0
+local MaxRejoinAttempts = 5
 
 -- =============================================
 -- 4. HÀM HỖ TRỢ (THÔNG BÁO, THỜI GIAN)
@@ -107,8 +120,15 @@ local function GetTimeInfo()
     return timeStr, dateStr, period, "Ngựa"
 end
 
+-- Hàm tạo màu Rainbow
+local function GetRainbowColor(offset)
+    offset = offset or 0
+    local time = tick() * 0.5 + offset
+    return Color3.fromHSV((time % 1), 1, 1)
+end
+
 -- =============================================
--- 5. HÀM TƯỜNG AN TOÀN (XA MAP, TRÊN TRÁI)
+-- 5. HÀM TƯỜNG AN TOÀN
 -- =============================================
 local function FindSafeWallPosition()
     local mapCenter = Vector3.new(0, 0, 0)
@@ -129,7 +149,7 @@ local function CreateSafeWall(position)
     if SafeWall then SafeWall:Destroy() end
     SafeWall = Instance.new("Part")
     SafeWall.Name = "SafeWall_Private"
-    SafeWall.Size = Vector3.new(50, 2, 50) -- Rộng hơn
+    SafeWall.Size = Vector3.new(50, 2, 50)
     SafeWall.CFrame = CFrame.new(position)
     SafeWall.Anchored = true
     SafeWall.CanCollide = true
@@ -177,7 +197,7 @@ local function TeleportToWall()
 end
 
 -- =============================================
--- 6. HÀM CHỐNG NEXTBOT (QUÉT MAP, KHÔNG TELEPORT DƯỚI ĐẤT)
+-- 6. HÀM CHỐNG NEXTBOT
 -- =============================================
 local function UpdateMapBounds()
     local minX, maxX = -250, 250
@@ -312,7 +332,7 @@ local function CheckNextBot()
 end
 
 -- =============================================
--- 7. HÀM FARM TOKEN (TÌM NGƯỜI GỤC -> CARRY -> RESURRECT)
+-- 7. HÀM FARM TOKEN
 -- =============================================
 local function IsPlayerDowned(player)
     if not player then return false end
@@ -331,26 +351,6 @@ local function IsPlayerDowned(player)
         end
     end
     return false, nil
-end
-
-local function IsPlayerDead(player)
-    if not player then return false end
-    local char = player.Character
-    if not char then return true end
-    local humanoid = char:FindFirstChild("Humanoid")
-    if not humanoid then return true end
-    if humanoid.Health <= 0 then
-        if char:FindFirstChild("Downed") then
-            return false
-        end
-        if char:FindFirstChild("DeathAnim") then
-            return true
-        end
-        if humanoid:GetState() == Enum.HumanoidStateType.Dead then
-            return true
-        end
-    end
-    return false
 end
 
 local function FindDownedPlayer()
@@ -465,7 +465,6 @@ local function FarmTokenLoop()
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     
-    -- Kiểm tra map đang bình chọn hoặc tạm dừng
     local gameState = workspace:FindFirstChild("GameState")
     if gameState then
         local stateText = tostring(gameState.Value or "")
@@ -494,40 +493,28 @@ local function FarmTokenLoop()
         local targetChar = downedPlayer.Character
         if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
             local targetPos = targetChar.HumanoidRootPart.Position
-            if not IsBotNearPositionToken(targetPos, 50) then
-                -- Teleport đến người bị hạ gục
-                root.CFrame = CFrame.new(targetPos + Vector3.new(0, 1, 0))
-                wait(0.2)
-                -- Carry
-                CarryPlayer(downedPlayer)
-                wait(0.3)
-                -- Teleport đến vị trí an toàn trong map
-                local safePos = FindSafePositionToken()
-                if safePos and IsInsideMap(safePos) and safePos.Y > 30 then
-                    root.CFrame = CFrame.new(safePos)
-                end
-                wait(0.2)
-                -- Thả và cứu
-                pcall(function()
-                    local humanoid = char:FindFirstChild("Humanoid")
-                    if humanoid then
-                        humanoid:DropCarry()
-                        IsCarrying = false
-                        CarriedPlayer = nil
-                    end
-                end)
-                ResurrectPlayer(downedPlayer)
-                FarmTokenCooldown = tick()
-                return
-            else
-                -- Có bot gần, teleport lên tường an toàn
-                TeleportToWall()
-                FarmTokenCooldown = tick()
-                return
+            root.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0))
+            wait(0.2)
+            CarryPlayer(downedPlayer)
+            wait(0.3)
+            local safePos = FindSafePositionToken()
+            if safePos and IsInsideMap(safePos) and safePos.Y > 30 then
+                root.CFrame = CFrame.new(safePos)
             end
+            wait(0.2)
+            pcall(function()
+                local humanoid = char:FindFirstChild("Humanoid")
+                if humanoid then
+                    humanoid:DropCarry()
+                    IsCarrying = false
+                    CarriedPlayer = nil
+                end
+            end)
+            ResurrectPlayer(downedPlayer)
+            FarmTokenCooldown = tick()
+            return
         end
     else
-        -- Không có ai bị hạ gục, ở tường
         if not IsAtWall then
             TeleportToWall()
         end
@@ -536,177 +523,196 @@ local function FarmTokenLoop()
 end
 
 -- =============================================
--- 8. HÀM AUTO FARM EVENT (BUBBLE)
+-- 8. HÀM AUTO FARM EVENT (CẬP NHẬT THEO YÊU CẦU)
 -- =============================================
-local function ScanAllBubbles()
-    AllBubbles = {}
-    local LocalPlayer = game.Players.LocalPlayer
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        local name = obj.Name or ""
-        if name:lower():find("bubble") then
-            local position = nil
-            if obj:IsA("BasePart") then
-                position = obj.Position
-            elseif obj:IsA("Model") then
-                if obj:FindFirstChild("PrimaryPart") then
-                    position = obj.PrimaryPart.Position
-                elseif obj:FindFirstChild("HumanoidRootPart") then
-                    position = obj.HumanoidRootPart.Position
-                elseif obj:FindFirstChild("Head") then
-                    position = obj.Head.Position
-                else
-                    local sumPos = Vector3.new(0, 0, 0)
-                    local count = 0
-                    for _, part in ipairs(obj:GetChildren()) do
-                        if part:IsA("BasePart") then
-                            sumPos = sumPos + part.Position
-                            count = count + 1
-                        end
-                    end
-                    if count > 0 then position = sumPos / count end
-                end
-            end
-            if position then
-                table.insert(AllBubbles, {
-                    object = obj,
-                    position = position,
-                    name = obj.Name,
-                    collected = false
-                })
-            end
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local PlayerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+local noItemTimer = 0
+local originalPosition = nil
+
+-- Hàm kiểm tra vật phẩm hợp lệ
+local function isValidItem(part)
+    if not part then return false end
+    local nameLower = string.lower(part.Name)
+    -- Kiểm tra tên vật phẩm (bubble, coconut, event)
+    if not string.find(nameLower, "bubble") and not string.find(nameLower, "coconut") then
+        return false
+    end
+    -- Bỏ qua hiệu ứng, animation, accessory
+    if part:FindFirstChildWhichIsA("ParticleEmitter") or 
+       part:FindFirstChildWhichIsA("Trail") or 
+       part:FindFirstChildWhichIsA("Beam") or
+       part:IsA("Accessory") or
+       part:FindFirstChildWhichIsA("Animation") then
+        return false
+    end
+    -- Bỏ qua vật phẩm của người chơi
+    for _, player in ipairs(game.Players:GetPlayers()) do
+        if player.Character and part:IsDescendantOf(player.Character) then
+            return false
         end
     end
-    TotalBubbles = #AllBubbles
-    BubbleLabel:Set("🎈 Bubble trong map: " .. TotalBubbles)
-    return AllBubbles
-end
-
-local function TeleportToBubble(targetPos)
-    local char = game.Players.LocalPlayer.Character
-    if not char then return false end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-    root.CFrame = CFrame.new(targetPos)
-    IsAtWall = false
     return true
 end
 
-local function CollectBubble(item)
-    if not item or not item.object or item.collected then return false end
-    local success = false
-    local clickDetector = item.object:FindFirstChild("ClickDetector")
-    if clickDetector then
-        pcall(function() clickDetector:FireClick() success = true end)
+-- Hàm lấy tất cả vật phẩm trên map
+local function getAllItems()
+    local items = {}
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if (v:IsA("BasePart") or v:IsA("Model")) then
+            if isValidItem(v) then
+                local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart")
+                if part then
+                    table.insert(items, part)
+                end
+            end
+        end
     end
-    local proximityPrompt = item.object:FindFirstChild("ProximityPrompt")
-    if proximityPrompt then
-        pcall(function() proximityPrompt:Fire() success = true end)
+    return items
+end
+
+-- Hàm kiểm tra nextbot gần
+local function isNextbotNear(position)
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Model") and v:GetAttribute("Nextbot") == true then
+            local root = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChildWhichIsA("BasePart")
+            if root then
+                local distance = (position - root.Position).Magnitude
+                if distance <= 12 then
+                    return true
+                end
+            end
+        end
     end
-    if not success then success = true end
-    if success then
-        item.collected = true
+    return false
+end
+
+-- Hàm tìm vật phẩm an toàn gần nhất
+local function getClosestSafeItem(hrp, items)
+    local closest, minDst = nil, math.huge
+    for _, part in ipairs(items) do
+        local dst = (hrp.Position - part.Position).Magnitude
+        if dst < minDst and not isNextbotNear(part.Position) then
+            closest = part
+            minDst = dst
+        end
+    end
+    return closest
+end
+
+-- Hàm teleport mượt
+local function teleportTo(hrp, pos, duration)
+    duration = duration or 0.2
+    local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(pos)})
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+-- Hàm thu thập vật phẩm
+local function collectItem(item)
+    if not item then return false end
+    pcall(function()
+        local collectId = item.Parent:GetAttribute("Id") or item:GetAttribute("Id") or "a19ac91bff904b7385e826fd6a23dc01"
+        ReplicatedStorage.Events.Collectibles.Invoke:InvokeServer(game.Players.LocalPlayer, collectId, "Collect")
         CollectedCount = CollectedCount + 1
-        ShowNotification("🎈 Đã nhặt!", "Bubble #" .. CollectedCount .. "/" .. TotalBubbles, 2, Color3.fromRGB(0, 255, 255))
         TotalLabel:Set("🎯 Đã nhặt: " .. CollectedCount .. " Bubble")
+        ShowNotification("🎈 Đã nhặt!", "Bubble #" .. CollectedCount, 2, Color3.fromRGB(0, 255, 255))
         return true
-    end
+    end)
     return false
 end
 
-local function IsBotNearPosition(pos, radius)
-    radius = radius or 60
-    local LocalPlayer = game.Players.LocalPlayer
-    for _, player in ipairs(game.Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local enemy = player.Character
-            if enemy and enemy:FindFirstChild("HumanoidRootPart") then
-                if (pos - enemy.HumanoidRootPart.Position).Magnitude < radius then
-                    return true
-                end
-            end
-        end
-    end
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
-            local name = obj.Name:lower()
-            if name:find("bot") or name:find("next") or name:find("npc") then
-                if (pos - obj.HumanoidRootPart.Position).Magnitude < radius then
-                    return true
-                end
-            end
-        end
-    end
-    return false
-end
-
+-- Farm loop chính (cập nhật)
 local function FarmLoop()
     if not AutoFarm then return end
     if tick() - FarmCooldown < 0.5 then return end
+    
     local LocalPlayer = game.Players.LocalPlayer
     local char = LocalPlayer.Character
     if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
     
-    -- Kiểm tra map đang bình chọn hoặc tạm dừng
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local isDowned = char:GetAttribute("Downed")
+    if isDowned then
+        FarmCooldown = tick()
+        return
+    end
+    
+    -- Kiểm tra trạng thái map
     local gameState = workspace:FindFirstChild("GameState")
     if gameState then
         local stateText = tostring(gameState.Value or "")
-        if stateText:lower():find("voting") or stateText:lower():find("bình chọn") then
-            IsVoting = true
-            if (root.Position - LastPosition).Magnitude > 10 then
-                root.CFrame = CFrame.new(LastPosition)
-            end
-            FarmCooldown = tick()
-            return
-        elseif stateText:lower():find("paused") or stateText:lower():find("tạm dừng") then
-            IsPaused = true
-            if not IsAtWall then
-                TeleportToWall()
-            end
-            FarmCooldown = tick()
-            return
-        else
-            IsVoting = false
-            IsPaused = false
-        end
-    end
-    
-    if #AllBubbles == 0 or CurrentIndex > #AllBubbles then
-        ScanAllBubbles()
-        CurrentIndex = 1
-        if #AllBubbles == 0 then
+        if stateText:lower():find("voting") or stateText:lower():find("bình chọn") or
+           stateText:lower():find("paused") or stateText:lower():find("tạm dừng") then
             if not IsAtWall then TeleportToWall() end
             FarmCooldown = tick()
             return
         end
-        ShowNotification("🎈 Đã quét!", "Tìm thấy " .. #AllBubbles .. " Bubble trong map", 3, Color3.fromRGB(0, 255, 255))
     end
-    local target = nil
-    for i = CurrentIndex, #AllBubbles do
-        if not AllBubbles[i].collected then
-            target = AllBubbles[i]
-            CurrentIndex = i
-            break
+    
+    -- Lấy danh sách vật phẩm
+    local items = getAllItems()
+    TotalBubbles = #items
+    BubbleLabel:Set("🎈 Bubble trong map: " .. TotalBubbles)
+    
+    -- Nếu không có vật phẩm
+    if #items == 0 then
+        noItemTimer = noItemTimer + 0.5
+        if noItemTimer >= 20 then
+            if IsAtWall then TeleportToWall() end
         end
+        FarmCooldown = tick()
+        return
+    else
+        noItemTimer = 0
     end
-    if not target then
-        if not IsAtWall then TeleportToWall() end
-        CurrentIndex = #AllBubbles + 1
+    
+    -- Tìm vật phẩm an toàn gần nhất
+    local item = getClosestSafeItem(hrp, items)
+    if not item then
         FarmCooldown = tick()
         return
     end
-    if IsBotNearPosition(target.position, 60) then
-        if not IsAtWall then TeleportToWall() end
+    
+    -- Lưu vị trí hiện tại
+    if not originalPosition then
+        originalPosition = hrp.Position + Vector3.new(0, 200, 0)
+    end
+    
+    -- Nếu đang ở tường thì bỏ anchor
+    if IsAtWall then
+        hrp.Anchored = false
+        IsAtWall = false
+    end
+    
+    -- Teleport đến vật phẩm
+    local startPos = hrp.Position
+    teleportTo(hrp, item.Position, 0.2)
+    
+    -- Thu thập vật phẩm
+    collectItem(item)
+    
+    wait(0.3)
+    
+    -- Kiểm tra lại trạng thái
+    isDowned = char:GetAttribute("Downed")
+    if isDowned then
+        hrp.Anchored = false
         FarmCooldown = tick()
         return
     end
-    TeleportToBubble(target.position)
-    wait(0.1)
-    CollectBubble(target)
-    wait(0.1)
-    TeleportToWall()
-    CurrentIndex = CurrentIndex + 1
+    
+    -- Quay về vị trí ban đầu hoặc lên tường
+    if IsAtWall then
+        teleportTo(hrp, originalPosition, 0.2)
+        hrp.Anchored = true
+    else
+        teleportTo(hrp, startPos, 0.2)
+    end
+    
     FarmCooldown = tick()
 end
 
@@ -765,7 +771,6 @@ end
 -- =============================================
 local function FarmLVLoop()
     if not FarmLV then return end
-    -- Farm LV sẽ tự động tạo tường rộng và teleport lên
     if not SafeWall then
         CreateSafeWall(FindSafeWallPosition())
     end
@@ -787,12 +792,35 @@ local function CheckAFK()
     local currentPos = root.Position
     local humanoid = char:FindFirstChild("Humanoid")
     if not humanoid then return end
-    local isMoving = (currentPos - LastPosition).Magnitude > 0.5 or humanoid.MoveDirection.Magnitude > 0.5
-    LastPosition = currentPos
-    if isMoving then
+    
+    local isMoving = (currentPos - LastPosition).Magnitude > 0.5
+    local isJumping = humanoid:GetState() == Enum.HumanoidStateType.Jumping
+    local isFalling = humanoid:GetState() == Enum.HumanoidStateType.Falling
+    local isRunning = humanoid.MoveDirection.Magnitude > 0.5
+    local isResetting = char:FindFirstChild("Reset")
+    
+    local camera = workspace.CurrentCamera
+    local cameraChanged = false
+    if camera then
+        local camCFrame = camera.CFrame
+        if not char:FindFirstChild("LastCamCFrame") then
+            local camVal = Instance.new("CFrameValue")
+            camVal.Name = "LastCamCFrame"
+            camVal.Value = camCFrame
+            camVal.Parent = char
+        else
+            if (camCFrame.Position - char.LastCamCFrame.Value.Position).Magnitude > 0.5 then
+                cameraChanged = true
+            end
+            char.LastCamCFrame.Value = camCFrame
+        end
+    end
+    
+    if isMoving or isJumping or isFalling or isRunning or isResetting or cameraChanged then
         AFKTime = 0
         LastActivityTime = tick()
         IsAFK = false
+        LastPosition = currentPos
     else
         if not IsAFK then
             IsAFK = true
@@ -827,13 +855,11 @@ local function UpdateRoundInfo()
             end
         end
         
-        -- Cập nhật vòng hiện tại
         local round = workspace:FindFirstChild("Round")
         if round then
             CurrentRound = tostring(round.Value or "Chưa xác định")
         end
         
-        -- Cập nhật loại vòng
         local roundType = workspace:FindFirstChild("RoundType")
         if roundType then
             RoundType = tostring(roundType.Value or "Bình thường")
@@ -844,7 +870,6 @@ local function UpdateRoundInfo()
             end
         end
         
-        -- Cập nhật thời gian còn lại
         local timeLeft = workspace:FindFirstChild("TimeLeft")
         if timeLeft then
             RoundTimeLeft = timeLeft.Value or 0
@@ -853,7 +878,394 @@ local function UpdateRoundInfo()
 end
 
 -- =============================================
--- 13. LABEL THÔNG TIN (TRÊN CÙNG)
+-- 13. HÀM ESP
+-- =============================================
+-- 13a. ESP BUBBLE
+local function CreateESPBubble()
+    for _, v in ipairs(ESPObjects) do
+        pcall(function() v:Destroy() end)
+    end
+    ESPObjects = {}
+    
+    if not ESPBubble then return end
+    
+    local LocalPlayer = game.Players.LocalPlayer
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    local items = getAllItems()
+    for _, item in ipairs(items) do
+        if item then
+            local pos = item.Position
+            local dist = (root.Position - pos).Magnitude
+            
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "ESPBubble"
+            billboard.Size = UDim2.new(0, 200, 0, 50)
+            billboard.Adornee = item
+            billboard.StudsOffset = Vector3.new(0, 3, 0)
+            billboard.AlwaysOnTop = true
+            billboard.Parent = item
+            
+            local frame = Instance.new("Frame")
+            frame.Size = UDim2.new(1, 0, 1, 0)
+            frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            frame.BackgroundTransparency = 0.5
+            frame.BorderSizePixel = 0
+            frame.Parent = billboard
+            
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+            nameLabel.Position = UDim2.new(0, 0, 0, 0)
+            nameLabel.Text = "🎈 " .. item.Name
+            nameLabel.TextColor3 = GetRainbowColor(0)
+            nameLabel.TextSize = 14
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Parent = frame
+            
+            local distLabel = Instance.new("TextLabel")
+            distLabel.Size = UDim2.new(1, 0, 0.5, 0)
+            distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+            distLabel.Text = string.format("%.1f mét", dist)
+            distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            distLabel.TextSize = 12
+            distLabel.BackgroundTransparency = 1
+            distLabel.Parent = frame
+            
+            table.insert(ESPObjects, billboard)
+            table.insert(ESPObjects, frame)
+            table.insert(ESPObjects, nameLabel)
+            table.insert(ESPObjects, distLabel)
+        end
+    end
+end
+
+-- 13b. ESP NEXTBOT
+local function CreateESPNexBot()
+    for _, v in ipairs(ESPObjects) do
+        pcall(function() v:Destroy() end)
+    end
+    ESPObjects = {}
+    
+    if not ESPNextBot then return end
+    
+    local LocalPlayer = game.Players.LocalPlayer
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    for _, player in ipairs(game.Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local enemy = player.Character
+            if enemy and enemy:FindFirstChild("HumanoidRootPart") then
+                local pos = enemy.HumanoidRootPart.Position
+                local dist = (root.Position - pos).Magnitude
+                
+                if dist < 150 then
+                    local billboard = Instance.new("BillboardGui")
+                    billboard.Name = "ESPNexBot"
+                    billboard.Size = UDim2.new(0, 200, 0, 60)
+                    billboard.Adornee = enemy.HumanoidRootPart
+                    billboard.StudsOffset = Vector3.new(0, 4, 0)
+                    billboard.AlwaysOnTop = true
+                    billboard.Parent = enemy.HumanoidRootPart
+                    
+                    local frame = Instance.new("Frame")
+                    frame.Size = UDim2.new(1, 0, 1, 0)
+                    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    frame.BackgroundTransparency = 0.5
+                    frame.BorderSizePixel = 0
+                    frame.Parent = billboard
+                    
+                    local nameLabel = Instance.new("TextLabel")
+                    nameLabel.Size = UDim2.new(1, 0, 0.33, 0)
+                    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+                    nameLabel.Text = "🤖 " .. player.Name
+                    nameLabel.TextColor3 = GetRainbowColor(0)
+                    nameLabel.TextSize = 14
+                    nameLabel.BackgroundTransparency = 1
+                    nameLabel.Parent = frame
+                    
+                    local distLabel = Instance.new("TextLabel")
+                    distLabel.Size = UDim2.new(1, 0, 0.33, 0)
+                    distLabel.Position = UDim2.new(0, 0, 0.33, 0)
+                    distLabel.Text = string.format("📏 %.1f mét", dist)
+                    distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    distLabel.TextSize = 12
+                    distLabel.BackgroundTransparency = 1
+                    distLabel.Parent = frame
+                    
+                    local warnLabel = Instance.new("TextLabel")
+                    warnLabel.Size = UDim2.new(1, 0, 0.33, 0)
+                    warnLabel.Position = UDim2.new(0, 0, 0.66, 0)
+                    warnLabel.Text = dist < 60 and "⚠️ ĐANG ĐẾN GẦN!" or "✅ An toàn"
+                    warnLabel.TextColor3 = dist < 60 and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
+                    warnLabel.TextSize = 12
+                    warnLabel.BackgroundTransparency = 1
+                    warnLabel.Parent = frame
+                    
+                    table.insert(ESPObjects, billboard)
+                    table.insert(ESPObjects, frame)
+                    table.insert(ESPObjects, nameLabel)
+                    table.insert(ESPObjects, distLabel)
+                    table.insert(ESPObjects, warnLabel)
+                end
+            end
+        end
+    end
+    
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
+            local name = obj.Name:lower()
+            if name:find("bot") or name:find("next") or name:find("npc") then
+                local pos = obj.HumanoidRootPart.Position
+                local dist = (root.Position - pos).Magnitude
+                
+                if dist < 150 then
+                    local billboard = Instance.new("BillboardGui")
+                    billboard.Name = "ESPNexBot"
+                    billboard.Size = UDim2.new(0, 200, 0, 60)
+                    billboard.Adornee = obj.HumanoidRootPart
+                    billboard.StudsOffset = Vector3.new(0, 4, 0)
+                    billboard.AlwaysOnTop = true
+                    billboard.Parent = obj.HumanoidRootPart
+                    
+                    local frame = Instance.new("Frame")
+                    frame.Size = UDim2.new(1, 0, 1, 0)
+                    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    frame.BackgroundTransparency = 0.5
+                    frame.BorderSizePixel = 0
+                    frame.Parent = billboard
+                    
+                    local nameLabel = Instance.new("TextLabel")
+                    nameLabel.Size = UDim2.new(1, 0, 0.33, 0)
+                    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+                    nameLabel.Text = "🤖 " .. obj.Name
+                    nameLabel.TextColor3 = GetRainbowColor(0)
+                    nameLabel.TextSize = 14
+                    nameLabel.BackgroundTransparency = 1
+                    nameLabel.Parent = frame
+                    
+                    local distLabel = Instance.new("TextLabel")
+                    distLabel.Size = UDim2.new(1, 0, 0.33, 0)
+                    distLabel.Position = UDim2.new(0, 0, 0.33, 0)
+                    distLabel.Text = string.format("📏 %.1f mét", dist)
+                    distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    distLabel.TextSize = 12
+                    distLabel.BackgroundTransparency = 1
+                    distLabel.Parent = frame
+                    
+                    local warnLabel = Instance.new("TextLabel")
+                    warnLabel.Size = UDim2.new(1, 0, 0.33, 0)
+                    warnLabel.Position = UDim2.new(0, 0, 0.66, 0)
+                    warnLabel.Text = dist < 60 and "⚠️ ĐANG ĐẾN GẦN!" or "✅ An toàn"
+                    warnLabel.TextColor3 = dist < 60 and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
+                    warnLabel.TextSize = 12
+                    warnLabel.BackgroundTransparency = 1
+                    warnLabel.Parent = frame
+                    
+                    table.insert(ESPObjects, billboard)
+                    table.insert(ESPObjects, frame)
+                    table.insert(ESPObjects, nameLabel)
+                    table.insert(ESPObjects, distLabel)
+                    table.insert(ESPObjects, warnLabel)
+                end
+            end
+        end
+    end
+end
+
+-- 13c. ESP PLAYERS
+local function CreateESPPlayers()
+    for _, v in ipairs(ESPObjects) do
+        pcall(function() v:Destroy() end)
+    end
+    ESPObjects = {}
+    
+    if not ESPPlayers then return end
+    
+    local LocalPlayer = game.Players.LocalPlayer
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    for _, player in ipairs(game.Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local enemy = player.Character
+            if enemy and enemy:FindFirstChild("HumanoidRootPart") then
+                local humanoid = enemy:FindFirstChild("Humanoid")
+                if not humanoid then return end
+                
+                local isDowned = false
+                local isDead = false
+                local color = GetRainbowColor(0)
+                
+                if humanoid.Health <= 0 then
+                    if enemy:FindFirstChild("Downed") then
+                        isDowned = true
+                        color = Color3.fromRGB(255, 0, 0)
+                    else
+                        isDead = true
+                    end
+                end
+                
+                if isDead then continue end
+                
+                local pos = enemy.HumanoidRootPart.Position
+                local dist = (root.Position - pos).Magnitude
+                
+                if dist < 150 then
+                    local billboard = Instance.new("BillboardGui")
+                    billboard.Name = "ESPPlayer"
+                    billboard.Size = UDim2.new(0, 200, 0, 50)
+                    billboard.Adornee = enemy.HumanoidRootPart
+                    billboard.StudsOffset = Vector3.new(0, 4, 0)
+                    billboard.AlwaysOnTop = true
+                    billboard.Parent = enemy.HumanoidRootPart
+                    
+                    local frame = Instance.new("Frame")
+                    frame.Size = UDim2.new(1, 0, 1, 0)
+                    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    frame.BackgroundTransparency = 0.5
+                    frame.BorderSizePixel = 0
+                    frame.Parent = billboard
+                    
+                    local nameLabel = Instance.new("TextLabel")
+                    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+                    nameLabel.Text = isDowned and "💀 " .. player.Name or "👤 " .. player.Name
+                    nameLabel.TextColor3 = isDowned and Color3.fromRGB(255, 0, 0) or GetRainbowColor(0)
+                    nameLabel.TextSize = 14
+                    nameLabel.BackgroundTransparency = 1
+                    nameLabel.Parent = frame
+                    
+                    local distLabel = Instance.new("TextLabel")
+                    distLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                    distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+                    distLabel.Text = string.format("📏 %.1f mét | %s", dist, isDowned and "⚠️ BỊ GỤC" or "🟢 Sống")
+                    distLabel.TextColor3 = isDowned and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
+                    distLabel.TextSize = 12
+                    distLabel.BackgroundTransparency = 1
+                    distLabel.Parent = frame
+                    
+                    table.insert(ESPObjects, billboard)
+                    table.insert(ESPObjects, frame)
+                    table.insert(ESPObjects, nameLabel)
+                    table.insert(ESPObjects, distLabel)
+                end
+            end
+        end
+    end
+end
+
+-- Cập nhật ESP liên tục
+local function UpdateESP()
+    if ESPBubble then
+        CreateESPBubble()
+    end
+    if ESPNextBot then
+        CreateESPNexBot()
+    end
+    if ESPPlayers then
+        CreateESPPlayers()
+    end
+end
+
+-- =============================================
+-- 14. HÀM ANTI ERROR CODE
+-- =============================================
+local function HandleError(errorMessage)
+    if not AntiErrorCode then return end
+    
+    print("[Anti Error] Phát hiện lỗi: " .. tostring(errorMessage))
+    
+    local recoverableErrors = {
+        "Datamodel",
+        "Replication",
+        "Network",
+        "Memory",
+        "Workspace",
+        "Players",
+        "RunService",
+        "HttpService",
+        "TweenService",
+        "UserInputService",
+        "ContextActionService",
+        "VirtualUser"
+    }
+    
+    local canRecover = false
+    for _, err in ipairs(recoverableErrors) do
+        if tostring(errorMessage):find(err) then
+            canRecover = true
+            break
+        end
+    end
+    
+    if canRecover then
+        print("[Anti Error] Đang cố gắng khôi phục lỗi...")
+        pcall(function()
+            game:GetService("RunService"):BindToRenderStep("AntiError", 0, function()
+                -- No operation
+            end)
+        end)
+        wait(0.5)
+        ShowNotification("🔄 Đã khôi phục!", "Đã xử lý lỗi: " .. tostring(errorMessage), 3, Color3.fromRGB(0, 255, 255))
+    else
+        print("[Anti Error] Lỗi quá VIP, không thể xử lý! Đang tham gia lại...")
+        ShowNotification("🔄 ĐANG REJOIN!", "Lỗi quá VIP, đang tham gia lại server mới...", 5, Color3.fromRGB(255, 200, 0))
+        
+        RejoinAttempts = RejoinAttempts + 1
+        if RejoinAttempts <= MaxRejoinAttempts then
+            local LocalPlayer = game.Players.LocalPlayer
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                LastPosition = char.HumanoidRootPart.Position
+            end
+            
+            pcall(function()
+                game:GetService("TeleportService"):Teleport(game.PlaceId)
+            end)
+        else
+            ShowNotification("❌ QUÁ NHIỀU LẦN REJOIN!", "Đã vượt quá số lần thử! Hãy tắt Anti Error Code và thử lại.", 5, Color3.fromRGB(255, 0, 0))
+            RejoinAttempts = 0
+        end
+    end
+end
+
+local function SetupErrorHandler()
+    if ErrorConnection then
+        ErrorConnection:Disconnect()
+        ErrorConnection = nil
+    end
+    
+    ErrorConnection = game:GetService("ScriptContext").Error:Connect(function(errorMessage, script)
+        if AntiErrorCode then
+            HandleError(errorMessage)
+        end
+    end)
+    
+    pcall(function()
+        local coreGui = game:GetService("CoreGui")
+        if coreGui then
+            coreGui.ChildAdded:Connect(function(child)
+                if AntiErrorCode and child:IsA("ScreenGui") then
+                    local errorText = child:FindFirstChild("ErrorText")
+                    if errorText and errorText:IsA("TextLabel") then
+                        HandleError(errorText.Text)
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- =============================================
+-- 15. LABEL THÔNG TIN (TRÊN CÙNG)
 -- =============================================
 MainTab:CreateSection("📋 Thông tin Script")
 MainTab:CreateLabel("Hello mn, đã quan tâm script này của tui nhe 😳")
@@ -877,7 +1289,7 @@ local RoundStatusLabel = MainTab:CreateLabel("🔄 Trạng thái map: Đang tả
 local RoundInfoLabel = MainTab:CreateLabel("⏳ The loop is running: 00:00:00 | Ring type: Chưa xác định")
 
 -- =============================================
--- 14. CẬP NHẬT LABEL LIÊN TỤC
+-- 16. CẬP NHẬT LABEL LIÊN TỤC
 -- =============================================
 local function UpdateAllLabels()
     pcall(function()
@@ -890,7 +1302,6 @@ local function UpdateAllLabels()
         TimeLabel:Set("⏰ Giờ: " .. timeInfo .. " | " .. dateInfo .. " | " .. period .. " | Năm " .. zodiac)
         RuntimeLabel:Set("🚀 Đã chạy: " .. timeStr)
         
-        -- AFK Time
         local afkHours = math.floor(AFKTime / 3600)
         local afkMinutes = math.floor((AFKTime % 3600) / 60)
         local afkSeconds = math.floor(AFKTime % 60)
@@ -903,7 +1314,6 @@ local function UpdateAllLabels()
             PositionLabel:Set(string.format("📍 Vị trí: X: %.1f | Y: %.1f | Z: %.1f", pos.X, pos.Y, pos.Z))
         end
         
-        -- Level và Exp
         local stats = LocalPlayer:FindFirstChild("leaderstats")
         if stats then
             local level = stats:FindFirstChild("Level")
@@ -918,19 +1328,11 @@ local function UpdateAllLabels()
             end
         end
         
-        -- Bubble count
-        local count = 0
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            local name = obj.Name or ""
-            if name:lower():find("bubble") then
-                count = count + 1
-            end
-        end
-        BubbleCount = count
-        BubbleLabel:Set("🎈 Bubble trong map: " .. count)
+        local items = getAllItems()
+        TotalBubbles = #items
+        BubbleLabel:Set("🎈 Bubble trong map: " .. TotalBubbles)
         TotalLabel:Set("🎯 Đã nhặt: " .. CollectedCount .. " Bubble")
         
-        -- Cập nhật thông tin vòng
         UpdateRoundInfo()
         RoundStatusLabel:Set("🔄 Trạng thái map: " .. MapStatus)
         if RoundTimeLeft > 0 then
@@ -947,10 +1349,11 @@ end
 game:GetService("RunService").Heartbeat:Connect(function()
     UpdateAllLabels()
     CheckAFK()
+    UpdateESP()
 end)
 
 -- =============================================
--- 15. TẠO TOGGLE (TẤT CẢ Ở DƯỚI)
+-- 17. TẠO TOGGLE (TẤT CẢ Ở DƯỚI)
 -- =============================================
 MainTab:CreateSection("⚙️ Cài đặt")
 
@@ -1046,10 +1449,10 @@ MainTab:CreateToggle({
     end
 })
 
--- TOGGLE 4: AUTO FARM EVENT
+-- TOGGLE 4: AUTO FARM EVENT (CẬP NHẬT)
 MainTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
-    Description = "Quét toàn bộ map, teleport đến Bubble, sau đó về tường an toàn",
+    Description = "Tự động tìm và nhặt Bubble/Coconut, tránh NextBot",
     CurrentValue = false,
     Callback = function(Value)
         AutoFarm = Value
@@ -1058,14 +1461,16 @@ MainTab:CreateToggle({
             CurrentIndex = 1
             AllBubbles = {}
             IsAtWall = false
+            noItemTimer = 0
+            originalPosition = nil
+            BubbleSpawnNotify = false
+            
             ShowNotification("🎈 Auto Farm", "Đang tạo tường và quét map...", 3, Color3.fromRGB(0, 255, 255))
             wait(0.3)
             CreateSafeWall(FindSafeWallPosition())
             TeleportToWall()
             ShowNotification("📍 Tường an toàn", "Đã tạo tường và teleport lên", 2, Color3.fromRGB(0, 200, 255))
-            wait(0.3)
-            ScanAllBubbles()
-            ShowNotification("🎈 Tìm thấy!", "Đã tìm thấy " .. TotalBubbles .. " Bubble", 3, Color3.fromRGB(0, 255, 0))
+            
             if FarmConnection then FarmConnection:Disconnect() end
             FarmConnection = game:GetService("RunService").Stepped:Connect(function()
                 if AutoFarm then pcall(FarmLoop) end
@@ -1083,6 +1488,11 @@ MainTab:CreateToggle({
             if WallConnection then
                 WallConnection:Disconnect()
                 WallConnection = nil
+            end
+            -- Reset anchor
+            local char = game.Players.LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.Anchored = false
             end
         end
     end
@@ -1161,18 +1571,101 @@ MainTab:CreateToggle({
     end
 })
 
+-- TOGGLE 7: ESP BUBBLE
+MainTab:CreateToggle({
+    Name = "ESP Bubble 🎈",
+    Description = "Hiện vị trí, khoảng cách và chỉ đường đến Bubble (Rainbow)",
+    CurrentValue = false,
+    Callback = function(Value)
+        ESPBubble = Value
+        if ESPBubble then
+            ShowNotification("✅ ESP Bubble", "Đã bật! Hiển thị vị trí Bubble", 2, Color3.fromRGB(0, 255, 0))
+            CreateESPBubble()
+        else
+            for _, v in ipairs(ESPObjects) do
+                pcall(function() v:Destroy() end)
+            end
+            ESPObjects = {}
+            ShowNotification("❌ ESP Bubble", "Đã tắt!", 2, Color3.fromRGB(255, 0, 0))
+        end
+    end
+})
+
+-- TOGGLE 8: ESP NEXTBOT
+MainTab:CreateToggle({
+    Name = "ESP NextBot 🤖",
+    Description = "Hiện vị trí, khoảng cách, cảnh báo NextBot (Rainbow)",
+    CurrentValue = false,
+    Callback = function(Value)
+        ESPNextBot = Value
+        if ESPNextBot then
+            ShowNotification("✅ ESP NextBot", "Đã bật! Phát hiện NextBot gần", 2, Color3.fromRGB(0, 255, 0))
+            CreateESPNexBot()
+        else
+            for _, v in ipairs(ESPObjects) do
+                pcall(function() v:Destroy() end)
+            end
+            ESPObjects = {}
+            ShowNotification("❌ ESP NextBot", "Đã tắt!", 2, Color3.fromRGB(255, 0, 0))
+        end
+    end
+})
+
+-- TOGGLE 9: ESP PLAYERS
+MainTab:CreateToggle({
+    Name = "ESP Players 👤",
+    Description = "Hiện tên, khoảng cách, trạng thái người chơi (Sống: Rainbow, Gục: Đỏ, Chết: Ẩn)",
+    CurrentValue = false,
+    Callback = function(Value)
+        ESPPlayers = Value
+        if ESPPlayers then
+            ShowNotification("✅ ESP Players", "Đã bật! Hiển thị thông tin người chơi", 2, Color3.fromRGB(0, 255, 0))
+            CreateESPPlayers()
+        else
+            for _, v in ipairs(ESPObjects) do
+                pcall(function() v:Destroy() end)
+            end
+            ESPObjects = {}
+            ShowNotification("❌ ESP Players", "Đã tắt!", 2, Color3.fromRGB(255, 0, 0))
+        end
+    end
+})
+
+-- TOGGLE 10: ANTI ERROR CODE
+MainTab:CreateToggle({
+    Name = "Anti Error Code ⚙️",
+    Description = "Chống các lỗi code từ Roblox, tự động rejoin nếu không thể xử lý",
+    CurrentValue = false,
+    Callback = function(Value)
+        AntiErrorCode = Value
+        if AntiErrorCode then
+            ShowNotification("⚙️ Anti-error code has been active...", "😡 Sẽ những con chó phải trả giá", 5, Color3.fromRGB(255, 200, 0))
+            wait(2)
+            ShowNotification("🔔 Thông báo khi bật", "⚠️ Cảnh báo anti error code có vài error code không thể anti vì nó quá vip nên không thể nên đừng ảo tưởng lộ mình là hack/cheat", 5, Color3.fromRGB(255, 100, 0))
+            SetupErrorHandler()
+        else
+            if ErrorConnection then
+                ErrorConnection:Disconnect()
+                ErrorConnection = nil
+            end
+            ShowNotification("❌ Anti Error Code", "Đã tắt!", 2, Color3.fromRGB(255, 0, 0))
+        end
+    end
+})
+
 -- =============================================
--- 16. THÔNG TIN CUỐI
+-- 18. THÔNG TIN CUỐI
 -- =============================================
 MainTab:CreateSection("📋 Thông tin thêm")
 MainTab:CreateLabel("👤 Tác giả: Nate & Ngọt")
 MainTab:CreateLabel("📱 Tương thích: Delta v2.731")
 MainTab:CreateLabel("⚠️ An toàn 21% = 21% tỷ lệ chết")
 MainTab:CreateLabel("⚡ Chế độ phản ứng siêu nhanh")
-MainTab:CreateLabel("🎈 Sự kiện: Mùa hè 2026 (Bubble)")
+MainTab:CreateLabel("🎈 Sự kiện: Mùa hè 2026 (Bubble/Coconut)")
 MainTab:CreateLabel("🔍 Auto Farm: Quét toàn bộ map")
 MainTab:CreateLabel("🏥 Farm Token: Cứu người bị hạ gục")
 MainTab:CreateLabel("⭐ Farm LV: Tường rộng và teleport lên")
+MainTab:CreateLabel("🎯 ESP: Bubble | NextBot | Players")
 
 print("========================================")
 print("[Evade Menu] Đã tải thành công!")
