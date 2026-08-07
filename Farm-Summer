@@ -4,7 +4,6 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 -- ===== TẠO WINDOW =====
 local Window = Rayfield:CreateWindow({
     Name = "Evade Menu",
-    Icon = 0,
     LoadingTitle = "Đang tải Evade Menu...",
     LoadingSubtitle = "by Nate & Ngọt",
     Configuration = {
@@ -14,438 +13,80 @@ local Window = Rayfield:CreateWindow({
 })
 
 -- ===== TẠO TAB =====
-local MainTab = Window:CreateTab("Chính", 4483362458)
+local MainTab = Window:CreateTab("Chính")
 
 -- =============================================
--- BIẾN TOÀN CỤC
+-- LABEL THÔNG TIN
 -- =============================================
-local StartTime = tick()
-local CollectedCount = 0
-local TotalBubbles = 0
-local CurrentLevel = 0
-local CurrentExp = 0
-local BubbleCount = 0
-local PlayerName = game.Players.LocalPlayer.Name
-local LastNotificationTime = 0
-local AllBubbles = {}
-local CurrentIndex = 1
-local FarmCooldown = 0
-local SafeWall = nil
-local WallConnection = nil
-local WallPosition = nil
-local CurrentMapName = ""
-local IsAtWall = false
-local CarriedPlayer = nil
-local IsCarrying = false
+MainTab:CreateLabel("Hello mn, đã quan tâm script này của tui nhe 😳")
+MainTab:CreateLabel("Script created by: Nate & Ngọt")
+MainTab:CreateLabel("⚠️ An toàn 21% = 21% tỷ lệ chết")
 
 -- =============================================
--- HÀM TẠO THÔNG BÁO (CHỐNG SPAM)
--- =============================================
-local function ShowNotification(title, message, duration, color)
-    duration = duration or 3
-    if tick() - LastNotificationTime < 1.5 then
-        return
-    end
-    LastNotificationTime = tick()
-    pcall(function()
-        Rayfield:Notify({
-            Title = title,
-            Content = message,
-            Duration = duration,
-            Image = 0,
-            Actions = {}
-        })
-    end)
-end
-
--- =============================================
--- HÀM LẤY THÔNG TIN THỜI GIAN
--- =============================================
-local function GetTimeInfo()
-    local now = os.time()
-    local date = os.date("*t", now)
-    
-    local timeStr = string.format("%02d:%02d:%02d", date.hour, date.min, date.sec)
-    
-    local days = {"Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"}
-    local dayStr = days[date.wday]
-    local dateStr = string.format("%s, %02d/%02d/%04d", dayStr, date.day, date.month, date.year)
-    
-    local period = ""
-    if date.hour >= 5 and date.hour < 12 then
-        period = "buổi sáng"
-    elseif date.hour >= 12 and date.hour < 18 then
-        period = "buổi chiều"
-    elseif date.hour >= 18 and date.hour < 22 then
-        period = "buổi tối"
-    else
-        period = "buổi đêm"
-    end
-    
-    local zodiac = "Ngựa"
-    
-    return timeStr, dateStr, period, zodiac
-end
-
--- =============================================
--- TẠO TƯỜNG AN TOÀN (XA MAP, TRÊN TRÁI)
--- =============================================
-local function CreateSafeWall(position)
-    if SafeWall then
-        SafeWall:Destroy()
-        SafeWall = nil
-    end
-    
-    -- Tạo tường rộng hơn (30x30)
-    SafeWall = Instance.new("Part")
-    SafeWall.Name = "SafeWall_Private"
-    SafeWall.Size = Vector3.new(30, 1, 30)
-    SafeWall.CFrame = CFrame.new(position)
-    SafeWall.Anchored = true
-    SafeWall.CanCollide = true
-    SafeWall.Transparency = 0.3 -- Hơi trong suốt nhưng vẫn thấy
-    SafeWall.Material = Enum.Material.Glass
-    SafeWall.Locked = true
-    SafeWall.Color = Color3.fromRGB(0, 200, 255) -- Màu xanh dương để dễ thấy
-    
-    -- Chỉ người dùng script mới thấy và va chạm
-    SafeWall.Parent = game:GetService("Workspace")
-    
-    WallPosition = position
-    print("[SafeWall] Đã tạo tường tại: " .. tostring(position))
-    
-    -- Theo dõi nhân vật để giữ trên tường
-    if WallConnection then
-        WallConnection:Disconnect()
-        WallConnection = nil
-    end
-    
-    WallConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        pcall(function()
-            if not SafeWall then return end
-            local LocalPlayer = game.Players.LocalPlayer
-            local character = LocalPlayer.Character
-            if not character then return end
-            
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
-            if not rootPart then return end
-            
-            local currentPos = rootPart.Position
-            
-            if currentPos.Y < WallPosition.Y - 5 then
-                rootPart.CFrame = CFrame.new(WallPosition + Vector3.new(0, 0.5, 0))
-                print("[SafeWall] Teleport lại lên tường")
-            end
-        end)
-    end)
-end
-
--- Tìm vị trí tường: XA MAP, TRÊN TRÁI
-local function FindSafeWallPosition()
-    local mapCenter = Vector3.new(0, 0, 0)
-    
-    -- Tìm center của map
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Part") and obj.Size.Magnitude > 100 then
-            mapCenter = obj.Position
-            break
-        end
-    end
-    
-    -- Vị trí tường: xa map về bên trái, trên cao
-    local safePos = Vector3.new(
-        mapCenter.X - 400, -- Xa về bên trái
-        math.random(250, 400), -- Trên cao
-        mapCenter.Z + math.random(-100, 100) -- Hơi lệch Z
-    )
-    
-    return safePos
-end
-
--- Cập nhật tường khi map đổi
-local function UpdateWallForNewMap()
-    local newMapName = workspace:FindFirstChild("Map") and workspace.Map.Name or "Unknown"
-    if newMapName ~= CurrentMapName then
-        CurrentMapName = newMapName
-        print("[SafeWall] Map đổi thành: " .. newMapName)
-        
-        local newPos = FindSafeWallPosition()
-        CreateSafeWall(newPos)
-        ShowNotification("📍 Đổi map!", "Tường đã được cập nhật", 2, Color3.fromRGB(0, 200, 255))
-    end
-end
-
--- =============================================
--- LABEL THÔNG TIN (TRÊN CÙNG)
--- =============================================
-MainTab:CreateSection("📋 Thông tin Script")
-
-local HelloLabel = MainTab:CreateLabel("Hello mn, đã quan tâm script này của tui nhe 😳")
-local AuthorLabel = MainTab:CreateLabel("Script created by: Nate & Ngọt")
-local UpdateLabel = MainTab:CreateLabel("Script sẽ được update thêm các tính năng và farm khác")
-local PurposeLabel = MainTab:CreateLabel("Script này không có mục đích phá game, chỉ farm và không can thiệp người khác")
-local AdminLabel = MainTab:CreateLabel("Nếu lỗi hoặc vấn đề gì nhắn admin nhé 🤑")
-
-local TimeLabel = MainTab:CreateLabel("⏰ Giờ: --:--:-- | --, --/--/---- | -- | Năm ----")
-local RuntimeLabel = MainTab:CreateLabel("🚀 Đã chạy: 00:00:00")
-
--- =============================================
--- LABEL THỐNG KÊ GAME
--- =============================================
-MainTab:CreateSection("📊 Thông tin Game")
-
-local BubbleLabel = MainTab:CreateLabel("🎈 Bubble trong map: 0")
-local LevelLabel = MainTab:CreateLabel("⭐ Level hiện tại: 0")
-local ExpLabel = MainTab:CreateLabel("✨ Exp hiện tại: 0")
-local TotalLabel = MainTab:CreateLabel("🎯 Đã nhặt: 0 Bubble")
-local PositionLabel = MainTab:CreateLabel("📍 Vị trí: X: 0 | Y: 0 | Z: 0")
-
--- =============================================
--- CẬP NHẬT LABEL LIÊN TỤC
--- =============================================
-local function UpdateAllLabels()
-    pcall(function()
-        local elapsed = math.floor(tick() - StartTime)
-        local hours = math.floor(elapsed / 3600)
-        local minutes = math.floor((elapsed % 3600) / 60)
-        local seconds = elapsed % 60
-        local timeStr = string.format("%02d:%02d:%02d", hours, minutes, seconds)
-        local timeInfo, dateInfo, period, zodiac = GetTimeInfo()
-        
-        TimeLabel:Set("⏰ Giờ: " .. timeInfo .. " | " .. dateInfo .. " | " .. period .. " | Năm " .. zodiac)
-        RuntimeLabel:Set("🚀 Đã chạy: " .. timeStr)
-        
-        local LocalPlayer = game.Players.LocalPlayer
-        local character = LocalPlayer.Character
-        if character and character:FindFirstChild("HumanoidRootPart") then
-            local pos = character.HumanoidRootPart.Position
-            PositionLabel:Set(string.format("📍 Vị trí: X: %.1f | Y: %.1f | Z: %.1f", pos.X, pos.Y, pos.Z))
-        end
-        
-        local stats = LocalPlayer:FindFirstChild("leaderstats")
-        if stats then
-            local level = stats:FindFirstChild("Level")
-            local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
-            if level then
-                CurrentLevel = level.Value
-                LevelLabel:Set("⭐ Level hiện tại: " .. CurrentLevel)
-            end
-            if exp then
-                CurrentExp = exp.Value
-                ExpLabel:Set("✨ Exp hiện tại: " .. CurrentExp)
-            end
-        end
-        
-        local count = 0
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            local name = obj.Name or ""
-            if name:lower():find("bubble") then
-                count = count + 1
-            end
-        end
-        BubbleCount = count
-        BubbleLabel:Set("🎈 Bubble trong map: " .. count)
-        TotalLabel:Set("🎯 Đã nhặt: " .. CollectedCount .. " Bubble")
-    end)
-end
-
-game:GetService("RunService").Heartbeat:Connect(function()
-    UpdateAllLabels()
-end)
-
--- =============================================
--- TOGGLE (TẤT CẢ Ở DƯỚI)
--- =============================================
-MainTab:CreateSection("⚙️ Cài đặt")
-
--- =============================================
--- 1. CHỐNG AFK
+-- CHỐNG AFK
 -- =============================================
 local AntiAFK = false
 local AFKConnection = nil
 
 MainTab:CreateToggle({
     Name = "Chống AFK",
-    Description = "Ngăn bị kick sau 20 phút không di chuyển",
+    Description = "Ngăn bị kick sau 20 phút",
     CurrentValue = false,
     Callback = function(Value)
         AntiAFK = Value
-        
         if AntiAFK then
-            local VirtualUser = game:GetService("VirtualUser")
-            local LocalPlayer = game.Players.LocalPlayer
-            
-            AFKConnection = LocalPlayer.Idled:Connect(function()
+            local vu = game:GetService("VirtualUser")
+            AFKConnection = game.Players.LocalPlayer.Idled:Connect(function()
                 if AntiAFK then
                     pcall(function()
-                        VirtualUser:CaptureController()
-                        VirtualUser:ClickButton2(Vector2.new())
+                        vu:CaptureController()
+                        vu:ClickButton2(Vector2.new())
                     end)
                 end
             end)
-            print("[Anti AFK] Đã bật")
-            ShowNotification("✅ Chống AFK", "Đã bật thành công!", 2)
+            print("[AFK] Bật")
         else
             if AFKConnection then
                 AFKConnection:Disconnect()
                 AFKConnection = nil
             end
-            print("[Anti AFK] Đã tắt")
-            ShowNotification("❌ Chống AFK", "Đã tắt!", 2)
+            print("[AFK] Tắt")
         end
     end
 })
 
 -- =============================================
--- 2. CHỐNG NEXTBOT V2 (KHÔNG TELEPORT DƯỚI ĐẤT)
+-- CHỐNG NEXTBOT
 -- =============================================
 local AntiNextBot = false
 local NextBotConnection = nil
-local NextBotCheckCooldown = 0
-local MapBounds = {
-    MinX = -250, MaxX = 250,
-    MinZ = -250, MaxZ = 250,
-    MinY = 30, MaxY = 200
-}
 
--- Quét map để cập nhật giới hạn (KHÔNG BAO GỒM DƯỚI ĐẤT)
-local function UpdateMapBounds()
-    local minX, maxX = -250, 250
-    local minZ, maxZ = -250, 250
-    local minY, maxY = 30, 200
-    
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Part") and obj.Size.Magnitude > 50 then
-            local pos = obj.Position
-            local size = obj.Size
-            minX = math.min(minX, pos.X - size.X/2)
-            maxX = math.max(maxX, pos.X + size.X/2)
-            minZ = math.min(minZ, pos.Z - size.Z/2)
-            maxZ = math.max(maxZ, pos.Z + size.Z/2)
-            -- KHÔNG lấy minY từ map để tránh teleport xuống đất
-            maxY = math.max(maxY, pos.Y + size.Y/2)
-        end
-    end
-    
-    MapBounds.MinX = minX + 20
-    MapBounds.MaxX = maxX - 20
-    MapBounds.MinZ = minZ + 20
-    MapBounds.MaxZ = maxZ - 20
-    MapBounds.MinY = 30 -- LUÔN TRÊN MẶT ĐẤT
-    MapBounds.MaxY = math.min(maxY - 10, 250)
-    
-    print("[NextBot] Đã cập nhật giới hạn map (Y >= 30)")
+local function GetSafePosition()
+    local pos = Vector3.new(
+        math.random(-180, 180),
+        math.random(50, 150),
+        math.random(-180, 180)
+    )
+    return pos
 end
 
--- Kiểm tra vị trí có trong map và TRÊN MẶT ĐẤT không
-local function IsInsideMap(pos)
-    return pos.X >= MapBounds.MinX and pos.X <= MapBounds.MaxX and
-           pos.Z >= MapBounds.MinZ and pos.Z <= MapBounds.MaxZ and
-           pos.Y >= MapBounds.MinY and pos.Y <= MapBounds.MaxY
-end
-
--- Tìm vị trí an toàn (TRÊN MẶT ĐẤT, không có bot)
-local function FindSafePosition()
-    UpdateMapBounds()
-    
-    for attempt = 1, 50 do
-        local testPos = Vector3.new(
-            math.random(MapBounds.MinX, MapBounds.MaxX),
-            math.random(MapBounds.MinY + 10, MapBounds.MaxY - 10),
-            math.random(MapBounds.MinZ, MapBounds.MaxZ)
-        )
-        
-        -- Đảm bảo không dưới đất
-        if testPos.Y < 30 then
-            testPos = Vector3.new(testPos.X, math.random(40, 150), testPos.Z)
-        end
-        
-        if not IsInsideMap(testPos) then
-            testPos = Vector3.new(
-                math.random(MapBounds.MinX + 10, MapBounds.MaxX - 10),
-                math.random(MapBounds.MinY + 10, MapBounds.MaxY - 10),
-                math.random(MapBounds.MinZ + 10, MapBounds.MaxZ - 10)
-            )
-        end
-        
-        local isSafe = true
-        local LocalPlayer = game.Players.LocalPlayer
-        
-        for _, player in ipairs(game.Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                local enemy = player.Character
-                if enemy and enemy:FindFirstChild("HumanoidRootPart") then
-                    local dist = (testPos - enemy.HumanoidRootPart.Position).Magnitude
-                    if dist < 55 then
-                        isSafe = false
-                        break
-                    end
-                end
-            end
-        end
-        
-        if isSafe then
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
-                    local name = obj.Name:lower()
-                    if name:find("bot") or name:find("next") or name:find("npc") then
-                        local dist = (testPos - obj.HumanoidRootPart.Position).Magnitude
-                        if dist < 55 then
-                            isSafe = false
-                            break
-                        end
-                    end
-                end
-            end
-        end
-        
-        if isSafe and IsInsideMap(testPos) and testPos.Y > 30 then
-            return testPos
-        end
-    end
-    
-    return Vector3.new(0, 50, 0)
-end
-
--- Kiểm tra NextBot
 local function CheckNextBot()
     if not AntiNextBot then return end
     
-    if tick() - NextBotCheckCooldown < 0.3 then
-        return
-    end
-    NextBotCheckCooldown = tick()
-    
     local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    if not character then return end
+    local char = LocalPlayer.Character
+    if not char then return end
     
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
     
-    local currentPos = rootPart.Position
-    
-    UpdateMapBounds()
-    
-    -- Nếu đang ở dưới đất hoặc ngoài map -> teleport lên
-    if currentPos.Y < 30 or not IsInsideMap(currentPos) then
-        local safePos = FindSafePosition()
-        if safePos and safePos.Y > 30 then
-            rootPart.CFrame = CFrame.new(safePos)
-            print("[NextBot] Đang ở dưới đất/ngoài map, teleport lên")
-            return
-        end
-    end
-    
-    -- Kiểm tra bot gần
     local botNear = false
-    
     for _, player in ipairs(game.Players:GetPlayers()) do
         if player ~= LocalPlayer then
             local enemy = player.Character
             if enemy and enemy:FindFirstChild("HumanoidRootPart") then
-                local dist = (currentPos - enemy.HumanoidRootPart.Position).Magnitude
-                if dist < 55 then
+                local dist = (root.Position - enemy.HumanoidRootPart.Position).Magnitude
+                if dist < 50 then
                     botNear = true
                     break
                 end
@@ -453,316 +94,96 @@ local function CheckNextBot()
         end
     end
     
-    if not botNear then
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
-                local name = obj.Name:lower()
-                if name:find("bot") or name:find("next") or name:find("npc") then
-                    local dist = (currentPos - obj.HumanoidRootPart.Position).Magnitude
-                    if dist < 55 then
-                        botNear = true
-                        break
-                    end
-                end
-            end
-        end
-    end
-    
     if botNear then
-        local safePos = FindSafePosition()
-        if safePos and IsInsideMap(safePos) and safePos.Y > 30 then
-            rootPart.CFrame = CFrame.new(safePos)
-            ShowNotification("🛡️ NextBot", "Phát hiện bot! Teleport đến vị trí an toàn", 2, Color3.fromRGB(255, 200, 0))
-            print("[NextBot] Teleport đến: " .. tostring(safePos))
-        end
+        local safePos = GetSafePosition()
+        root.CFrame = CFrame.new(safePos)
+        print("[NextBot] Teleport đến: " .. tostring(safePos))
     end
 end
 
 MainTab:CreateToggle({
     Name = "Chống NextBot V2 🛡️",
-    Description = "Chỉ teleport khi bot gần, luôn ở trên mặt đất",
+    Description = "Tự động teleport khi bot gần",
     CurrentValue = false,
     Callback = function(Value)
         AntiNextBot = Value
-        
         if AntiNextBot then
-            UpdateMapBounds()
-            print("[NextBot V2] Đã bật")
-            ShowNotification("✅ Chống NextBot V2", "Đã bật! Luôn ở trên mặt đất", 3, Color3.fromRGB(0, 255, 0))
-            
+            print("[NextBot] Bật")
             if NextBotConnection then
                 NextBotConnection:Disconnect()
             end
-            
             NextBotConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                if AntiNextBot then
-                    pcall(function()
-                        CheckNextBot()
-                    end)
-                end
+                pcall(CheckNextBot)
             end)
         else
             if NextBotConnection then
                 NextBotConnection:Disconnect()
                 NextBotConnection = nil
             end
-            print("[NextBot V2] Đã tắt")
-            ShowNotification("❌ Chống NextBot V2", "Đã tắt!", 2, Color3.fromRGB(255, 0, 0))
+            print("[NextBot] Tắt")
         end
     end
 })
 
 -- =============================================
--- 3. CHỐNG GỤC
--- =============================================
-local AntiDied = false
-local DeathCheckConnection = nil
-local HasShownDied = false
-local HasShownRevived = false
-
-local function ForceRespawn()
-    local LocalPlayer = game.Players.LocalPlayer
-    
-    print("[Chống Gục] PHÁT HIỆN BỊ HẠ GỤC! Đang respawn...")
-    
-    if not HasShownDied then
-        HasShownDied = true
-        HasShownRevived = false
-        ShowNotification("💀 BỊ HẠ GỤC!", "Đang tự động respawn...", 3, Color3.fromRGB(255, 0, 0))
-    end
-    
-    pcall(function()
-        LocalPlayer:LoadCharacter()
-    end)
-    
-    wait(0.5)
-    
-    local character = LocalPlayer.Character
-    if character then
-        local root = character:FindFirstChild("HumanoidRootPart")
-        if root then
-            local pos = FindSafeWallPosition()
-            root.CFrame = CFrame.new(pos)
-        end
-        
-        local humanoid = character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.Health = 100
-        end
-    end
-    
-    if not HasShownRevived then
-        HasShownRevived = true
-        HasShownDied = false
-        ShowNotification("🔄 ĐÃ RESPAWN", "Đã tự động respawn thành công!", 3, Color3.fromRGB(0, 255, 0))
-    end
-end
-
-local function CheckDeath()
-    if not AntiDied then return end
-    
-    local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    
-    if not character then
-        LocalPlayer:LoadCharacter()
-        return
-    end
-    
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return end
-    
-    if humanoid.Health <= 0 then
-        ForceRespawn()
-        return
-    end
-    
-    if humanoid:GetState() == Enum.HumanoidStateType.Dead then
-        ForceRespawn()
-        return
-    end
-    
-    for _, child in ipairs(character:GetChildren()) do
-        if child.Name:lower():find("downed") or child.Name:lower():find("dead") then
-            ForceRespawn()
-            return
-        end
-    end
-end
-
-MainTab:CreateToggle({
-    Name = "Chống Gục bởi NextBot",
-    Description = "Tự động respawn khi bị hạ gục",
-    CurrentValue = false,
-    Callback = function(Value)
-        AntiDied = Value
-        
-        if AntiDied then
-            ShowNotification("⚠️ Thông báo", "Toggle đang được cập nhật vì nó quá phức tạp", 5, Color3.fromRGB(255, 200, 0))
-            print("[Chống Gục] Đã bật")
-            HasShownDied = false
-            HasShownRevived = false
-            
-            wait(0.3)
-            CheckDeath()
-            
-            if DeathCheckConnection then
-                DeathCheckConnection:Disconnect()
-            end
-            
-            DeathCheckConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                if AntiDied then
-                    pcall(function()
-                        CheckDeath()
-                    end)
-                end
-            end)
-            
-            game.Players.LocalPlayer.CharacterAdded:Connect(function(character)
-                if AntiDied then
-                    print("[Chống Gục] Nhân vật mới xuất hiện!")
-                    HasShownDied = false
-                    HasShownRevived = false
-                    wait(0.3)
-                    local root = character:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local pos = FindSafeWallPosition()
-                        root.CFrame = CFrame.new(pos)
-                    end
-                    local humanoid = character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        humanoid.Health = 100
-                    end
-                end
-            end)
-            
-            print("[Chống Gục] Sẵn sàng")
-        else
-            print("[Chống Gục] Đã tắt")
-            ShowNotification("❌ Chống Gục", "Đã tắt!", 2, Color3.fromRGB(255, 0, 0))
-            if DeathCheckConnection then
-                DeathCheckConnection:Disconnect()
-                DeathCheckConnection = nil
-            end
-        end
-    end
-})
-
--- =============================================
--- 4. AUTO FARM EVENT
+-- AUTO FARM EVENT
 -- =============================================
 local AutoFarm = false
 local FarmConnection = nil
-local ScanCooldown = 0
+local Collected = 0
+local AllBubbles = {}
+local CurrentIndex = 1
 
--- QUÉT TOÀN BỘ MAP TÌM BUBBLE
-local function ScanAllBubbles()
+local function ScanBubbles()
     AllBubbles = {}
-    local LocalPlayer = game.Players.LocalPlayer
-    
     for _, obj in ipairs(workspace:GetDescendants()) do
         local name = obj.Name or ""
         if name:lower():find("bubble") then
-            local position = nil
-            
+            local pos = nil
             if obj:IsA("BasePart") then
-                position = obj.Position
-            elseif obj:IsA("Model") then
-                if obj:FindFirstChild("PrimaryPart") then
-                    position = obj.PrimaryPart.Position
-                elseif obj:FindFirstChild("HumanoidRootPart") then
-                    position = obj.HumanoidRootPart.Position
-                elseif obj:FindFirstChild("Head") then
-                    position = obj.Head.Position
-                else
-                    local sumPos = Vector3.new(0, 0, 0)
-                    local count = 0
-                    for _, part in ipairs(obj:GetChildren()) do
-                        if part:IsA("BasePart") then
-                            sumPos = sumPos + part.Position
-                            count = count + 1
-                        end
-                    end
-                    if count > 0 then
-                        position = sumPos / count
-                    end
-                end
+                pos = obj.Position
+            elseif obj:IsA("Model") and obj:FindFirstChild("PrimaryPart") then
+                pos = obj.PrimaryPart.Position
+            elseif obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
+                pos = obj.HumanoidRootPart.Position
             end
-            
-            if position then
+            if pos then
                 table.insert(AllBubbles, {
                     object = obj,
-                    position = position,
+                    position = pos,
                     name = obj.Name,
                     collected = false
                 })
             end
         end
     end
-    
-    TotalBubbles = #AllBubbles
-    print("[AutoFarm] Quét hoàn tất! Tìm thấy " .. TotalBubbles .. " Bubble")
-    BubbleLabel:Set("🎈 Bubble trong map: " .. TotalBubbles)
+    print("[Farm] Tìm thấy " .. #AllBubbles .. " Bubble")
     return AllBubbles
 end
 
--- TELEPORT ĐẾN BUBBLE
-local function TeleportToBubble(targetPos)
-    local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    if not character then return false end
-    
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return false end
-    
-    rootPart.CFrame = CFrame.new(targetPos)
-    return true
-end
-
--- TELEPORT LÊN TƯỜNG
-local function TeleportToWall()
-    if not SafeWall then
-        local pos = FindSafeWallPosition()
-        CreateSafeWall(pos)
+local function TeleportToBubble(pos)
+    local char = game.Players.LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if root then
+        root.CFrame = CFrame.new(pos)
+        return true
     end
-    
-    if not SafeWall then return false end
-    
-    local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    if not character then return false end
-    
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return false end
-    
-    local wallPos = SafeWall.Position + Vector3.new(0, 1, 0)
-    rootPart.CFrame = CFrame.new(wallPos)
-    IsAtWall = true
-    print("[AutoFarm] Teleport lên tường: " .. tostring(wallPos))
-    return true
+    return false
 end
 
--- NHẶT BUBBLE
 local function CollectBubble(item)
-    if not item or not item.object then return false end
-    if item.collected then return false end
+    if not item or item.collected then return false end
     
     local success = false
-    
-    local clickDetector = item.object:FindFirstChild("ClickDetector")
-    if clickDetector then
-        pcall(function()
-            clickDetector:FireClick()
-            success = true
-        end)
+    local click = item.object:FindFirstChild("ClickDetector")
+    if click then
+        pcall(function() click:FireClick() success = true end)
     end
     
-    local proximityPrompt = item.object:FindFirstChild("ProximityPrompt")
-    if proximityPrompt then
-        pcall(function()
-            proximityPrompt:Fire()
-            success = true
-        end)
+    local prompt = item.object:FindFirstChild("ProximityPrompt")
+    if prompt then
+        pcall(function() prompt:Fire() success = true end)
     end
     
     if not success then
@@ -771,77 +192,22 @@ local function CollectBubble(item)
     
     if success then
         item.collected = true
-        CollectedCount = CollectedCount + 1
-        print("[AutoFarm] Đã nhặt Bubble #" .. CollectedCount)
-        TotalLabel:Set("🎯 Đã nhặt: " .. CollectedCount .. " Bubble")
-        ShowNotification("🎈 Đã nhặt!", "Bubble #" .. CollectedCount .. "/" .. TotalBubbles, 2, Color3.fromRGB(0, 255, 255))
+        Collected = Collected + 1
+        print("[Farm] Đã nhặt Bubble #" .. Collected)
         return true
     end
-    
     return false
 end
 
--- Kiểm tra bot gần Bubble
-local function IsBotNearPosition(pos, radius)
-    radius = radius or 60
-    local LocalPlayer = game.Players.LocalPlayer
-    
-    for _, player in ipairs(game.Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local enemy = player.Character
-            if enemy and enemy:FindFirstChild("HumanoidRootPart") then
-                local dist = (pos - enemy.HumanoidRootPart.Position).Magnitude
-                if dist < radius then
-                    return true
-                end
-            end
-        end
-    end
-    
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
-            local name = obj.Name:lower()
-            if name:find("bot") or name:find("next") or name:find("npc") then
-                local dist = (pos - obj.HumanoidRootPart.Position).Magnitude
-                if dist < radius then
-                    return true
-                end
-            end
-        end
-    end
-    
-    return false
-end
-
--- FARM LOOP
 local function FarmLoop()
     if not AutoFarm then return end
     
-    if tick() - FarmCooldown < 0.5 then
-        return
-    end
-    
-    local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    if not character then return end
-    
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-    
-    local currentPos = rootPart.Position
-    
     if #AllBubbles == 0 or CurrentIndex > #AllBubbles then
-        ScanAllBubbles()
+        ScanBubbles()
         CurrentIndex = 1
         if #AllBubbles == 0 then
-            if not IsAtWall then
-                TeleportToWall()
-                ShowNotification("📍 Về tường", "Không có Bubble, đang về tường", 2, Color3.fromRGB(0, 200, 255))
-            end
-            FarmCooldown = tick()
             return
         end
-        ShowNotification("🎈 Đã quét!", "Tìm thấy " .. #AllBubbles .. " Bubble trong map", 3, Color3.fromRGB(0, 255, 255))
     end
     
     local target = nil
@@ -854,429 +220,125 @@ local function FarmLoop()
     end
     
     if not target then
-        if not IsAtWall then
-            TeleportToWall()
-            ShowNotification("📍 Về tường", "Đã nhặt hết Bubble!", 2, Color3.fromRGB(0, 200, 255))
-        end
         CurrentIndex = #AllBubbles + 1
-        FarmCooldown = tick()
         return
     end
     
-    if IsBotNearPosition(target.position, 60) then
-        print("[AutoFarm] Bot gần Bubble, chờ...")
-        if not IsAtWall then
-            TeleportToWall()
-            ShowNotification("⚠️ Chờ bot", "Bot gần Bubble, đợi bot đi xa", 2, Color3.fromRGB(255, 200, 0))
-        end
-        FarmCooldown = tick()
-        return
-    end
-    
-    IsAtWall = false
     TeleportToBubble(target.position)
-    print("[AutoFarm] Teleport đến Bubble #" .. CurrentIndex)
-    ShowNotification("🎈 Teleport!", "Đang đến Bubble #" .. CurrentIndex, 1.5, Color3.fromRGB(255, 200, 0))
-    
-    wait(0.1)
+    wait(0.2)
     CollectBubble(target)
-    
-    wait(0.1)
-    TeleportToWall()
-    print("[AutoFarm] Đã nhặt xong, teleport lên tường")
-    
     CurrentIndex = CurrentIndex + 1
-    FarmCooldown = tick()
 end
 
 MainTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
-    Description = "Quét toàn bộ map, teleport đến Bubble, sau đó về tường an toàn",
+    Description = "Tự động teleport đến Bubble",
     CurrentValue = false,
     Callback = function(Value)
         AutoFarm = Value
-        
         if AutoFarm then
-            CollectedCount = 0
+            Collected = 0
             CurrentIndex = 1
             AllBubbles = {}
-            IsAtWall = false
-            
-            print("[AutoFarm] ĐÃ BẬT")
-            ShowNotification("🎈 Auto Farm", "Đang tạo tường và quét map...", 3, Color3.fromRGB(0, 255, 255))
-            
-            wait(0.3)
-            local wallPos = FindSafeWallPosition()
-            CreateSafeWall(wallPos)
-            TeleportToWall()
-            ShowNotification("📍 Tường an toàn", "Đã tạo tường và teleport lên", 2, Color3.fromRGB(0, 200, 255))
-            
-            wait(0.3)
-            ScanAllBubbles()
-            ShowNotification("🎈 Tìm thấy!", "Đã tìm thấy " .. TotalBubbles .. " Bubble", 3, Color3.fromRGB(0, 255, 0))
-            
-            game:GetService("RunService").Heartbeat:Connect(function()
-                if AutoFarm then
-                    pcall(function()
-                        UpdateWallForNewMap()
-                    end)
-                end
-            end)
-            
+            print("[Farm] Bật")
+            ScanBubbles()
             if FarmConnection then
                 FarmConnection:Disconnect()
             end
-            
             FarmConnection = game:GetService("RunService").Stepped:Connect(function()
-                if AutoFarm then
-                    pcall(function()
-                        FarmLoop()
-                    end)
-                end
+                pcall(FarmLoop)
             end)
-            
-            print("[AutoFarm] ĐANG CHẠY")
         else
-            print("[AutoFarm] ĐÃ TẮT")
-            ShowNotification("❌ Auto Farm", "Đã tắt! Tổng: " .. CollectedCount .. " Bubble", 3, Color3.fromRGB(255, 0, 0))
-            
+            print("[Farm] Tắt")
             if FarmConnection then
                 FarmConnection:Disconnect()
                 FarmConnection = nil
             end
-            
-            if SafeWall then
-                SafeWall:Destroy()
-                SafeWall = nil
-            end
-            if WallConnection then
-                WallConnection:Disconnect()
-                WallConnection = nil
-            end
         end
     end
 })
 
 -- =============================================
--- 5. FARM TOKEN (RESURRECT EVERYTHING + AFK)
+-- CHỐNG GỤC
 -- =============================================
-local FarmToken = false
-local FarmTokenConnection = nil
-local FarmTokenCooldown = 0
-local CurrentTarget = nil
-local TargetPositionWall = nil
+local AntiDied = false
+local DeathCheckConnection = nil
 
--- Tìm người chơi bị hạ gục
-local function FindDownedPlayer()
+local function RevivePlayer()
     local LocalPlayer = game.Players.LocalPlayer
-    local nearestDowned = nil
-    local nearestDist = math.huge
+    local char = LocalPlayer.Character
+    if not char then return end
     
-    for _, player in ipairs(game.Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local character = player.Character
-            if character then
-                -- Kiểm tra health
-                local humanoid = character:FindFirstChild("Humanoid")
-                if humanoid and humanoid.Health <= 0 then
-                    local root = character:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local dist = (root.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                        if dist < nearestDist then
-                            nearestDist = dist
-                            nearestDowned = player
-                        end
-                    end
-                end
-                
-                -- Kiểm tra Downed state
-                local downedState = character:FindFirstChild("Downed")
-                if downedState then
-                    local root = character:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local dist = (root.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                        if dist < nearestDist then
-                            nearestDist = dist
-                            nearestDowned = player
-                        end
-                    end
-                end
-            end
-        end
-    end
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then return end
     
-    return nearestDowned
-end
-
--- Kiểm tra bot gần vị trí
-local function IsBotNearPositionToken(pos, radius)
-    radius = radius or 50
-    local LocalPlayer = game.Players.LocalPlayer
-    
-    for _, player in ipairs(game.Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local enemy = player.Character
-            if enemy and enemy:FindFirstChild("HumanoidRootPart") then
-                local dist = (pos - enemy.HumanoidRootPart.Position).Magnitude
-                if dist < radius then
-                    return true
-                end
-            end
-        end
-    end
-    
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
-            local name = obj.Name:lower()
-            if name:find("bot") or name:find("next") or name:find("npc") then
-                local dist = (pos - obj.HumanoidRootPart.Position).Magnitude
-                if dist < radius then
-                    return true
-                end
-            end
-        end
-    end
-    
-    return false
-end
-
--- Tìm vị trí an toàn trong map (trên cao, không bot)
-local function FindSafePositionToken()
-    UpdateMapBounds()
-    
-    for attempt = 1, 30 do
-        local testPos = Vector3.new(
-            math.random(MapBounds.MinX + 50, MapBounds.MaxX - 50),
-            math.random(80, MapBounds.MaxY - 20),
-            math.random(MapBounds.MinZ + 50, MapBounds.MaxZ - 50)
-        )
+    if humanoid.Health <= 0 then
+        pcall(function()
+            humanoid.Health = 100
+            print("[Died] Đã hồi sinh")
+        end)
         
-        if IsInsideMap(testPos) and not IsBotNearPositionToken(testPos, 50) then
-            return testPos
+        pcall(function()
+            local downed = char:FindFirstChild("Downed")
+            if downed then downed:Destroy() end
+        end)
+        
+        wait(0.2)
+        if humanoid.Health <= 0 then
+            LocalPlayer:LoadCharacter()
+            print("[Died] Respawn")
         end
     end
-    
-    return Vector3.new(0, 100, 0)
 end
 
--- Carry người chơi
-local function CarryPlayer(player)
-    if not player then return false end
+local function CheckDied()
+    if not AntiDied then return end
     
-    local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    if not character then return false end
+    local char = game.Players.LocalPlayer.Character
+    if not char then return end
     
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return false end
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then return end
     
-    -- Teleport đến người chơi
-    local targetChar = player.Character
-    if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
-        local root = character:FindFirstChild("HumanoidRootPart")
-        if root then
-            root.CFrame = targetChar.HumanoidRootPart.CFrame + Vector3.new(0, 2, 0)
-        end
+    if humanoid.Health <= 0 then
+        RevivePlayer()
     end
     
-    -- Thực hiện Carry
-    pcall(function()
-        humanoid:Carry(player)
-        print("[Farm Token] Đã carry: " .. player.Name)
-        CarriedPlayer = player
-        IsCarrying = true
-        ShowNotification("🤝 Đang carry!", "Đang carry " .. player.Name, 2, Color3.fromRGB(255, 200, 0))
-        return true
-    end)
-    
-    return false
-end
-
--- Cứu người chơi (Resurrect)
-local function ResurrectPlayer(player)
-    if not player then return false end
-    
-    local targetChar = player.Character
-    if not targetChar then return false end
-    
-    local humanoid = targetChar:FindFirstChild("Humanoid")
-    if not humanoid then return false end
-    
-    -- Hồi sinh
-    pcall(function()
-        humanoid.Health = 100
-        print("[Farm Token] Đã hồi sinh: " .. player.Name)
-        ShowNotification("❤️ Đã cứu!", "Đã hồi sinh " .. player.Name, 3, Color3.fromRGB(0, 255, 0))
-        
-        -- Xóa Downed state
-        local downed = targetChar:FindFirstChild("Downed")
-        if downed then
-            downed:Destroy()
-        end
-        
-        return true
-    end)
-    
-    return false
-end
-
--- Farm Token Loop
-local function FarmTokenLoop()
-    if not FarmToken then return end
-    
-    if tick() - FarmTokenCooldown < 1 then
-        return
-    end
-    
-    local LocalPlayer = game.Players.LocalPlayer
-    local character = LocalPlayer.Character
-    if not character then return end
-    
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-    
-    -- Tìm người chơi bị hạ gục
-    local downedPlayer = FindDownedPlayer()
-    
-    if downedPlayer then
-        print("[Farm Token] Tìm thấy người bị hạ gục: " .. downedPlayer.Name)
-        
-        -- Kiểm tra bot gần người đó
-        local targetChar = downedPlayer.Character
-        if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
-            local targetPos = targetChar.HumanoidRootPart.Position
-            
-            if not IsBotNearPositionToken(targetPos, 50) then
-                -- Không có bot gần -> carry và cứu
-                CarryPlayer(downedPlayer)
-                wait(0.3)
-                
-                -- Teleport lên vị trí an toàn
-                local safePos = FindSafePositionToken()
-                rootPart.CFrame = CFrame.new(safePos)
-                print("[Farm Token] Teleport lên vị trí an toàn: " .. tostring(safePos))
-                
-                wait(0.2)
-                
-                -- Cứu người chơi
-                ResurrectPlayer(downedPlayer)
-                
-                -- Thả người chơi
-                pcall(function()
-                    local humanoid = character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        humanoid:DropCarry()
-                        IsCarrying = false
-                        CarriedPlayer = nil
-                        print("[Farm Token] Đã thả người chơi")
-                    end
-                end)
-                
-                FarmTokenCooldown = tick()
-                return
-            else
-                print("[Farm Token] Có bot gần người bị hạ gục, đợi...")
-                -- Teleport lên tường an toàn chờ
-                if SafeWall then
-                    local wallPos = SafeWall.Position + Vector3.new(0, 1, 0)
-                    rootPart.CFrame = CFrame.new(wallPos)
-                    ShowNotification("⚠️ Chờ bot", "Bot gần người bị hạ gục, đợi bot đi xa", 2, Color3.fromRGB(255, 200, 0))
-                end
-                FarmTokenCooldown = tick()
-                return
-            end
-        end
-    else
-        -- Không có ai bị hạ gục -> ở tường
-        if SafeWall then
-            local wallPos = SafeWall.Position + Vector3.new(0, 1, 0)
-            if (rootPart.Position - wallPos).Magnitude > 10 then
-                rootPart.CFrame = CFrame.new(wallPos)
-                print("[Farm Token] Không có ai bị hạ gục, về tường")
-            end
-        end
-        FarmTokenCooldown = tick()
+    if humanoid:GetState() == Enum.HumanoidStateType.Dead then
+        RevivePlayer()
     end
 end
 
 MainTab:CreateToggle({
-    Name = "Farm Token (Resurrect everything + AFK) 🏥",
-    Description = "Tự động tìm người bị hạ gục, carry và cứu",
+    Name = "Chống Gục bởi NextBot",
+    Description = "Tự động hồi sinh khi bị gục",
     CurrentValue = false,
     Callback = function(Value)
-        FarmToken = Value
-        
-        if FarmToken then
-            print("[Farm Token] ĐÃ BẬT")
-            ShowNotification("🏥 Farm Token", "Đã bật! Tự động cứu người bị hạ gục", 3, Color3.fromRGB(0, 255, 255))
-            
-            UpdateMapBounds()
-            
-            -- Tạo tường nếu chưa có
-            if not SafeWall then
-                local wallPos = FindSafeWallPosition()
-                CreateSafeWall(wallPos)
-                wait(0.3)
-                local character = game.Players.LocalPlayer.Character
-                if character and character:FindFirstChild("HumanoidRootPart") then
-                    character.HumanoidRootPart.CFrame = CFrame.new(wallPos + Vector3.new(0, 1, 0))
-                end
-                ShowNotification("📍 Tường an toàn", "Đã tạo tường", 2, Color3.fromRGB(0, 200, 255))
+        AntiDied = Value
+        if AntiDied then
+            print("[Died] Bật")
+            if DeathCheckConnection then
+                DeathCheckConnection:Disconnect()
             end
-            
-            if FarmTokenConnection then
-                FarmTokenConnection:Disconnect()
-            end
-            
-            FarmTokenConnection = game:GetService("RunService").Stepped:Connect(function()
-                if FarmToken then
-                    pcall(function()
-                        FarmTokenLoop()
-                    end)
-                end
+            DeathCheckConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                pcall(CheckDied)
             end)
-            
-            print("[Farm Token] ĐANG CHẠY")
         else
-            print("[Farm Token] ĐÃ TẮT")
-            ShowNotification("❌ Farm Token", "Đã tắt!", 2, Color3.fromRGB(255, 0, 0))
-            
-            if FarmTokenConnection then
-                FarmTokenConnection:Disconnect()
-                FarmTokenConnection = nil
-            end
-            
-            -- Thả người nếu đang carry
-            if IsCarrying then
-                pcall(function()
-                    local character = game.Players.LocalPlayer.Character
-                    if character then
-                        local humanoid = character:FindFirstChild("Humanoid")
-                        if humanoid then
-                            humanoid:DropCarry()
-                        end
-                    end
-                    IsCarrying = false
-                    CarriedPlayer = nil
-                end)
+            print("[Died] Tắt")
+            if DeathCheckConnection then
+                DeathCheckConnection:Disconnect()
+                DeathCheckConnection = nil
             end
         end
     end
 })
 
 -- =============================================
--- THÔNG TIN CUỐI
+-- THÔNG TIN
 -- =============================================
-MainTab:CreateSection("📋 Thông tin thêm")
-MainTab:CreateLabel("👤 Tác giả: Nate & Ngọt")
-MainTab:CreateLabel("📱 Tương thích: Delta v2.731")
-MainTab:CreateLabel("⚠️ An toàn 21% = 21% tỷ lệ chết")
-MainTab:CreateLabel("⚡ Chế độ phản ứng siêu nhanh")
-MainTab:CreateLabel("🎈 Sự kiện: Mùa hè 2026 (Bubble)")
-MainTab:CreateLabel("🔍 Auto Farm: Quét toàn bộ map")
-MainTab:CreateLabel("🏥 Farm Token: Cứu người bị hạ gục")
+MainTab:CreateLabel("Tương thích: Delta v2.731")
+MainTab:CreateLabel("Sự kiện: Mùa hè 2026 (Bubble)")
 
 print("========================================")
 print("[Evade Menu] Đã tải thành công!")
-print("[Evade Menu] Tác giả: Nate & Ngọt")
 print("========================================")
