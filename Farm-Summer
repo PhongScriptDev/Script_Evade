@@ -41,14 +41,23 @@ local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
 local InfoSection = FarmTab:CreateSection("📊 Farm Information")
 
 local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items: 0")
-local EventStatusLabel = FarmTab:CreateLabel("📌 Item target: Bubble")
+local EventStatusLabel = FarmTab:CreateLabel("📌 Event: 🔍 Checking...")
 local CurrentCurrencyLabel = FarmTab:CreateLabel("💰 Current currency: 0")
+local EventTimeLabel = FarmTab:CreateLabel("⏰ Time left: Unknown")
 
 -- SECTION 2: AUTO FARM EVENT
 local FarmEventSection = FarmTab:CreateSection("🎈 Auto Farm Event")
 
 -- =============================================
--- 🔧 DANH SÁCH TÊN VẬT PHẨM (SỬA TẠI ĐÂY)
+-- TAB 2: SELF-MECHANISM (MỚI)
+-- =============================================
+local SelfTab = Window:CreateTab("Self-mechanism", 4483362458)
+
+-- SECTION: REVIVE YOURSELF
+local ReviveSection = SelfTab:CreateSection("💀 Revive Yourself")
+
+-- =============================================
+-- 🔧 DANH SÁCH TÊN VẬT PHẨM (10 CHỖ)
 -- =============================================
 local ItemNameList = {
    "Bubble",
@@ -86,18 +95,23 @@ local CurrentCurrency = 0
 local AutoRescue = false
 local RescueConnection = nil
 local RescuedCount = 0
-local StartCurrency = 0
 local IsCollecting = false
+local UseAutoDetect = true
+local EventActive = false
+local EventName = "Unknown"
+local EventTimeLeft = "Unknown"
+local ReviveSelf = false
+local ReviveConnection = nil
+local IsReviving = false
 
 -- =============================================
--- TAB 3: PLAYERS (MỚI)
+-- TAB 3: PLAYERS
 -- =============================================
 local PlayersTab = Window:CreateTab("Players", 4483362458)
 
 -- SECTION: FPS
 local FPSSection = PlayersTab:CreateSection("📊 FPS Counter")
 
--- Toggle Show FPS
 local ShowFPS = false
 local FPSScreenGui = nil
 local FPSFrame = nil
@@ -105,7 +119,6 @@ local FPSLabel = nil
 local FPSConnection = nil
 
 local function CreateFPSGui()
-    -- Xóa GUI cũ nếu có
     if FPSScreenGui then
         FPSScreenGui:Destroy()
         FPSScreenGui = nil
@@ -113,28 +126,24 @@ local function CreateFPSGui()
     
     if not ShowFPS then return end
     
-    -- Tạo ScreenGui
     FPSScreenGui = Instance.new("ScreenGui")
     FPSScreenGui.Name = "FPS_Counter"
     FPSScreenGui.ResetOnSpawn = false
     FPSScreenGui.Parent = game:GetService("CoreGui")
     
-    -- Tạo Frame chính (hình vuông, viền tròn, rainbow)
     FPSFrame = Instance.new("Frame")
     FPSFrame.Size = UDim2.new(0, 70, 0, 40)
-    FPSFrame.Position = UDim2.new(1, -85, 0, 10) -- Góc phải trên
+    FPSFrame.Position = UDim2.new(1, -85, 0, 10)
     FPSFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     FPSFrame.BackgroundTransparency = 0.8
     FPSFrame.BorderSizePixel = 2
     FPSFrame.ClipsDescendants = true
     FPSFrame.Parent = FPSScreenGui
     
-    -- Bo góc
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 10)
     corner.Parent = FPSFrame
     
-    -- Label FPS
     FPSLabel = Instance.new("TextLabel")
     FPSLabel.Size = UDim2.new(1, 0, 1, 0)
     FPSLabel.Position = UDim2.new(0, 0, 0, 0)
@@ -146,7 +155,6 @@ local function CreateFPSGui()
     FPSLabel.TextScaled = true
     FPSLabel.Parent = FPSFrame
     
-    -- Cập nhật FPS
     local frameCount = 0
     local lastTime = tick()
     
@@ -168,7 +176,6 @@ local function CreateFPSGui()
             lastTime = currentTime
         end
         
-        -- Cập nhật viền rainbow
         if FPSFrame then
             local hue = (tick() * 0.5) % 1
             FPSFrame.BorderColor3 = Color3.fromHSV(hue, 1, 1)
@@ -176,7 +183,6 @@ local function CreateFPSGui()
     end)
 end
 
--- Toggle Show FPS
 PlayersTab:CreateToggle({
     Name = "Show FPS 📊",
     Description = "Hiển thị FPS ở góc phải trên cùng",
@@ -199,22 +205,354 @@ PlayersTab:CreateToggle({
 })
 
 -- =============================================
--- Lọc danh sách (bỏ qua "none")
+-- HÀM TÌM VỊ TRÍ TƯỜNG (XA MAP, KHÔNG GÂY LAG)
 -- =============================================
-local function GetActiveItems()
-    local active = {}
-    for _, name in ipairs(ItemNameList) do
-        local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
-        if trimmed ~= "" and trimmed:lower() ~= "none" then
-            table.insert(active, trimmed)
+local function FindSafeWallPosition()
+    local mapCenter = Vector3.new(0, 0, 0)
+    local mapRadius = 0
+    
+    -- Tìm center và bán kính của map
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Part") and obj.Size.Magnitude > 50 then
+            mapCenter = obj.Position
+            mapRadius = math.max(mapRadius, obj.Size.X, obj.Size.Z)
+            break
         end
     end
-    return active
+    
+    if mapCenter == Vector3.new(0, 0, 0) then
+        local char = game.Players.LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            mapCenter = char.HumanoidRootPart.Position
+        end
+    end
+    
+    -- Tính khoảng cách an toàn: xa hơn map 300-500 studs
+    local safeDistance = math.random(350, 500)
+    local angle = math.random() * 2 * math.pi
+    
+    -- Vị trí tường: xa map, trên cao
+    local safePos = Vector3.new(
+        mapCenter.X + math.cos(angle) * safeDistance,
+        math.random(200, 350),
+        mapCenter.Z + math.sin(angle) * safeDistance
+    )
+    
+    return safePos
 end
 
 -- =============================================
--- HÀM GỬI THÔNG BÁO (CHỐNG SPAM)
+-- HÀM TẠO TƯỜNG (RỘNG, CHẮC CHẮN)
 -- =============================================
+local function CreateSafeWall(position)
+    if SafeWall then SafeWall:Destroy() end
+    
+    SafeWall = Instance.new("Part")
+    SafeWall.Name = "SafeWall_Private"
+    SafeWall.Size = Vector3.new(100, 4, 100) -- Rộng hơn
+    SafeWall.CFrame = CFrame.new(position)
+    SafeWall.Anchored = true
+    SafeWall.CanCollide = true
+    SafeWall.Transparency = 0.1
+    SafeWall.Material = Enum.Material.Glass
+    SafeWall.Locked = true
+    SafeWall.Color = Color3.fromRGB(0, 200, 255)
+    SafeWall.Parent = workspace
+    WallPosition = position
+    print("[SafeWall] Đã tạo tường tại:", position)
+end
+
+-- =============================================
+-- HÀM REVIVE (DÙNG CHUNG CHO TẤT CẢ TOGGLE FARM)
+-- =============================================
+local function RevivePlayer()
+    if IsReviving then return end
+    IsReviving = true
+    
+    local LocalPlayer = game.Players.LocalPlayer
+    local char = LocalPlayer.Character
+    
+    if not char then
+        pcall(function()
+            LocalPlayer:LoadCharacter()
+            print("[Revive] Đã respawn (không có nhân vật)")
+        end)
+        IsReviving = false
+        return
+    end
+    
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then
+        pcall(function()
+            LocalPlayer:LoadCharacter()
+            print("[Revive] Đã respawn (không có Humanoid)")
+        end)
+        IsReviving = false
+        return
+    end
+    
+    local isDowned = char:GetAttribute("Downed") or false
+    local health = humanoid.Health or 0
+    local isDead = humanoid:GetState() == Enum.HumanoidStateType.Dead
+    
+    if isDowned or health <= 0 or isDead then
+        print("[Revive] Phát hiện bị hạ gục! Đang hồi sinh...")
+        
+        pcall(function()
+            humanoid.Health = 100
+        end)
+        
+        pcall(function()
+            local downedState = char:FindFirstChild("Downed")
+            if downedState then
+                downedState:Destroy()
+            end
+        end)
+        
+        pcall(function()
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+            wait(0.05)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+        end)
+        
+        pcall(function()
+            humanoid.Sit = false
+            humanoid.PlatformStand = false
+            humanoid.AutoRotate = true
+        end)
+        
+        wait(0.2)
+        if humanoid.Health <= 0 then
+            pcall(function()
+                LocalPlayer:LoadCharacter()
+                print("[Revive] Đã respawn (force)")
+            end)
+        else
+            print("[Revive] Hồi sinh thành công!")
+        end
+        
+        -- Teleport lên tường nếu có
+        if SafeWall then
+            wait(0.1)
+            local newChar = LocalPlayer.Character
+            if newChar and newChar:FindFirstChild("HumanoidRootPart") then
+                newChar.HumanoidRootPart.CFrame = CFrame.new(SafeWall.Position + Vector3.new(0, 2, 0))
+            end
+        end
+    end
+    
+    IsReviving = false
+end
+
+-- =============================================
+-- HÀM KIỂM TRA VÀ HỒI SINH (DÙNG CHUNG)
+-- =============================================
+local function CheckAndRevive()
+    if not ReviveSelf then return end
+    
+    local LocalPlayer = game.Players.LocalPlayer
+    local char = LocalPlayer.Character
+    
+    if char then
+        local humanoid = char:FindFirstChild("Humanoid")
+        if humanoid then
+            local isDowned = char:GetAttribute("Downed") or false
+            local health = humanoid.Health or 0
+            local isDead = humanoid:GetState() == Enum.HumanoidStateType.Dead
+            
+            if isDowned or health <= 0 or isDead then
+                RevivePlayer()
+            end
+        end
+    end
+end
+
+-- =============================================
+-- CÁC HÀM KHÁC (GIỮ NGUYÊN)
+-- =============================================
+local function GetActiveItems()
+    local active = {}
+    local hasManual = false
+    
+    for _, name in ipairs(ItemNameList) do
+        local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
+        if trimmed ~= "" and trimmed:lower() ~= "none" then
+            hasManual = true
+            break
+        end
+    end
+    
+    if hasManual then
+        UseAutoDetect = false
+        for _, name in ipairs(ItemNameList) do
+            local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
+            if trimmed ~= "" and trimmed:lower() ~= "none" then
+                table.insert(active, trimmed)
+            end
+        end
+        EventStatusLabel:Set("📌 Item target: " .. table.concat(active, ", "))
+        return active
+    end
+    
+    UseAutoDetect = true
+    local detected = AutoDetectEventItems()
+    
+    if #detected > 0 then
+        EventStatusLabel:Set("📌 Item target: 🔍 Auto Detect (" .. #detected .. " items)")
+    else
+        EventStatusLabel:Set("📌 Item target: ⚠️ No items found!")
+    end
+    
+    return detected
+end
+
+local function AutoDetectEventItems()
+    local detected = {}
+    local LocalPlayer = game.Players.LocalPlayer
+    local character = LocalPlayer.Character
+    if not character then return detected end
+    
+    local currencyNames = {}
+    local stats = LocalPlayer:FindFirstChild("leaderstats")
+    if stats then
+        for _, child in ipairs(stats:GetChildren()) do
+            if child:IsA("NumberValue") or child:IsA("IntValue") then
+                local name = child.Name
+                local skipNames = {"Level", "Exp", "Experience", "Wins", "Kills", "Deaths", "Points", "Score", "Coin", "Robux"}
+                local shouldSkip = false
+                for _, skip in ipairs(skipNames) do
+                    if name == skip then
+                        shouldSkip = true
+                        break
+                    end
+                end
+                if not shouldSkip then
+                    table.insert(currencyNames, name)
+                end
+            end
+        end
+    end
+    
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsDescendantOf(character) then continue end
+        
+        local clickDetector = obj:FindFirstChild("ClickDetector")
+        local proximityPrompt = obj:FindFirstChild("ProximityPrompt")
+        
+        if clickDetector or proximityPrompt then
+            local objName = obj.Name or ""
+            local nameLower = objName:lower()
+            
+            local isCurrency = false
+            for _, cName in ipairs(currencyNames) do
+                if nameLower:find(cName:lower()) then
+                    isCurrency = true
+                    break
+                end
+            end
+            
+            if not isCurrency then
+                if obj:GetAttribute("CurrencyType") or obj:GetAttribute("EventCurrency") or 
+                   obj:GetAttribute("Currency") or obj:GetAttribute("Value") then
+                    isCurrency = true
+                end
+            end
+            
+            if isCurrency then
+                table.insert(detected, objName)
+            end
+        end
+    end
+    
+    return detected
+end
+
+local function ScanGameForEvent()
+    local found = false
+    local name = "Unknown"
+    local timeLeft = "Unknown"
+    local source = "none"
+    
+    local LocalPlayer = game.Players.LocalPlayer
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, gui in ipairs(playerGui:GetDescendants()) do
+            if gui:IsA("TextLabel") or gui:IsA("TextButton") or gui:IsA("Frame") then
+                local text = gui.Text or ""
+                local textLower = text:lower()
+                
+                local eventKeywords = {
+                    "sự kiện", "event", "summer", "halloween", "christmas", 
+                    "valentine", "easter", "spring", "fall", "winter", "newyear",
+                    "festival", "mùa hè", "giáng sinh", "lễ hội",
+                    "bubble", "coconut", "candy", "gift", "present", "coin",
+                    "token", "collect", "reward", "currency"
+                }
+                for _, keyword in ipairs(eventKeywords) do
+                    if textLower:find(keyword) then
+                        found = true
+                        name = text
+                        source = "menu"
+                        break
+                    end
+                end
+                
+                if textLower:find("ngày") or textLower:find("còn lại") or textLower:find("remaining") then
+                    if text:match("%d+") then
+                        timeLeft = text
+                    end
+                end
+                
+                if found then break end
+            end
+        end
+    end
+    
+    if not found then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            local nameLower = obj.Name:lower()
+            if nameLower:find("event") or nameLower:find("summer") or 
+               nameLower:find("halloween") or nameLower:find("christmas") or
+               nameLower:find("festival") then
+                found = true
+                name = obj.Name
+                source = "map"
+                break
+            end
+        end
+    end
+    
+    return found, name, timeLeft, source
+end
+
+local function UpdateEventStatus()
+    pcall(function()
+        local found, name, timeLeft, source = ScanGameForEvent()
+        
+        if found then
+            EventActive = true
+            EventName = name
+            EventTimeLeft = timeLeft
+            
+            local statusText = "📌 Event: ✅ ACTIVE"
+            if source == "menu" then
+                statusText = statusText .. " (Menu)"
+            elseif source == "map" then
+                statusText = statusText .. " (Map)"
+            end
+            EventStatusLabel:Set(statusText)
+            
+            if timeLeft ~= "Unknown" then
+                EventTimeLabel:Set("⏰ Time left: " .. timeLeft)
+            end
+        else
+            EventActive = false
+            EventStatusLabel:Set("📌 Event: ❌ NONE")
+            EventTimeLabel:Set("⏰ Time left: No event")
+        end
+    end)
+end
+
 local function SendNotification(title, content, duration)
     duration = duration or 2.5
     if tick() - LastNotifyTime < 0.3 then return end
@@ -229,9 +567,21 @@ local function SendNotification(title, content, duration)
     end)
 end
 
--- =============================================
--- HÀM TÌM VẬT PHẨM (TỐI ƯU)
--- =============================================
+local function GetCurrentCurrency()
+    local LocalPlayer = game.Players.LocalPlayer
+    local stats = LocalPlayer:FindFirstChild("leaderstats")
+    if stats then
+        local activeItems = GetActiveItems()
+        for _, itemName in ipairs(activeItems) do
+            local stat = stats:FindFirstChild(itemName)
+            if stat then
+                return stat.Value or 0
+            end
+        end
+    end
+    return 0
+end
+
 local function FindEventItems()
     local items = {}
     local LocalPlayer = game.Players.LocalPlayer
@@ -284,15 +634,12 @@ local function FindEventItems()
             end
             
             if position then
-                local clickDetector = obj:FindFirstChild("ClickDetector")
-                local proximityPrompt = obj:FindFirstChild("ProximityPrompt")
-                
                 table.insert(items, {
                     object = obj,
                     position = position,
                     distance = (rootPos.Position - position).Magnitude,
-                    clickDetector = clickDetector,
-                    proximityPrompt = proximityPrompt,
+                    clickDetector = obj:FindFirstChild("ClickDetector"),
+                    proximityPrompt = obj:FindFirstChild("ProximityPrompt"),
                     name = objName
                 })
             end
@@ -304,102 +651,6 @@ local function FindEventItems()
     end)
     
     return items
-end
-
--- =============================================
--- KIỂM TRA TRẠNG THÁI MAP
--- =============================================
-local function CheckMapState()
-    local gameState = workspace:FindFirstChild("GameState")
-    if gameState then
-        local stateText = tostring(gameState.Value or "")
-        
-        if stateText:lower():find("voting") or stateText:lower():find("bình chọn") then
-            if not IsWaitingForVote then
-                IsWaitingForVote = true
-                SendNotification("⏳ Đang bình chọn!", "Chờ hết thời gian bình chọn...", 3)
-            end
-            return true, "voting"
-        end
-        
-        if stateText:lower():find("paused") or stateText:lower():find("tạm dừng") then
-            if not IsWaitingForPause then
-                IsWaitingForPause = true
-                SendNotification("⏸️ Đang tạm dừng!", "Chờ game tiếp tục...", 3)
-            end
-            return true, "paused"
-        end
-        
-        if IsWaitingForVote or IsWaitingForPause then
-            IsWaitingForVote = false
-            IsWaitingForPause = false
-            SendNotification("✅ Tiếp tục!", "Đã hết thời gian chờ!", 2)
-        end
-    end
-    
-    return false, "running"
-end
-
--- =============================================
--- HÀM LẤY SỐ LƯỢNG VẬT PHẨM HIỆN TẠI
--- =============================================
-local function GetCurrentCurrency()
-    local LocalPlayer = game.Players.LocalPlayer
-    local stats = LocalPlayer:FindFirstChild("leaderstats")
-    if stats then
-        local activeItems = GetActiveItems()
-        for _, itemName in ipairs(activeItems) do
-            local stat = stats:FindFirstChild(itemName)
-            if stat then
-                return stat.Value or 0
-            end
-        end
-    end
-    return 0
-end
-
--- =============================================
--- TƯỜNG AN TOÀN (RỘNG, NGƯỜI KHÁC THẤY ĐƯỢC)
--- =============================================
-local function FindSafeWallPosition()
-    local mapCenter = Vector3.new(0, 0, 0)
-    
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Part") and obj.Size.Magnitude > 50 then
-            mapCenter = obj.Position
-            break
-        end
-    end
-    
-    if mapCenter == Vector3.new(0, 0, 0) then
-        local char = game.Players.LocalPlayer.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            mapCenter = char.HumanoidRootPart.Position
-        end
-    end
-    
-    return Vector3.new(
-        mapCenter.X + math.random(-150, 150),
-        math.random(150, 280),
-        mapCenter.Z + math.random(-150, 150)
-    )
-end
-
-local function CreateSafeWall(position)
-    if SafeWall then SafeWall:Destroy() end
-    
-    SafeWall = Instance.new("Part")
-    SafeWall.Name = "SafeWall_Private"
-    SafeWall.Size = Vector3.new(80, 3, 80)
-    SafeWall.CFrame = CFrame.new(position)
-    SafeWall.Anchored = true
-    SafeWall.CanCollide = true
-    SafeWall.Transparency = 0.1
-    SafeWall.Material = Enum.Material.Glass
-    SafeWall.Locked = true
-    SafeWall.Color = Color3.fromRGB(0, 200, 255)
-    SafeWall.Parent = workspace -- Mọi người đều thấy được
-    WallPosition = position
 end
 
 local function TeleportToWall()
@@ -416,7 +667,7 @@ local function TeleportToWall()
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return false end
     
-    root.CFrame = CFrame.new(SafeWall.Position + Vector3.new(0, 1.5, 0))
+    root.CFrame = CFrame.new(SafeWall.Position + Vector3.new(0, 2, 0))
     IsAtWall = true
     
     local humanoid = char:FindFirstChild("Humanoid")
@@ -453,18 +704,13 @@ local function TeleportToItem(targetPos)
     return true
 end
 
--- =============================================
--- HÀM TẮT EMOTE
--- =============================================
 local function StopEmote()
     pcall(function()
         local char = game.Players.LocalPlayer.Character
         if char then
             local humanoid = char:FindFirstChild("Humanoid")
             if humanoid then
-                -- Tắt emote bằng cách reset animation
                 humanoid:LoadAnimation(nil)
-                -- Hoặc dùng cách khác
                 local animator = char:FindFirstChild("Animator")
                 if animator then
                     for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
@@ -476,9 +722,6 @@ local function StopEmote()
     end)
 end
 
--- =============================================
--- HÀM NHẶT VẬT PHẨM (CÓ KIỂM TRA SỐ LƯỢNG)
--- =============================================
 local function CollectItemWithRetry(item)
     if not item or IsCollecting then return false end
     IsCollecting = true
@@ -491,7 +734,6 @@ local function CollectItemWithRetry(item)
     while attempt < maxAttempts and not success do
         attempt = attempt + 1
         
-        -- Tắt emote khi teleport
         StopEmote()
         
         if item.clickDetector then
@@ -521,7 +763,6 @@ local function CollectItemWithRetry(item)
         end
     end
     
-    -- Kiểm tra số lượng vật phẩm sau khi nhặt
     local afterCurrency = GetCurrentCurrency()
     local gained = afterCurrency - beforeCurrency
     
@@ -538,7 +779,6 @@ local function CollectItemWithRetry(item)
         return true
     end
     
-    -- Kiểm tra nếu vật phẩm biến mất
     local stillExists = false
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj == item.object then
@@ -548,7 +788,6 @@ local function CollectItemWithRetry(item)
     end
     
     if not stillExists then
-        -- Vật phẩm biến mất, kiểm tra xem đã nhận được chưa
         if afterCurrency > beforeCurrency then
             CollectedCount = CollectedCount + (afterCurrency - beforeCurrency)
             CurrentCurrency = afterCurrency
@@ -565,16 +804,28 @@ local function CollectItemWithRetry(item)
 end
 
 -- =============================================
--- FARM LOOP
+-- FARM LOOP (CÓ TỰ ĐỘNG HỒI SINH)
 -- =============================================
 local function FarmLoop()
     if not AutoFarm then return end
     
+    -- TỰ ĐỘNG HỒI SINH NẾU BỊ HẠ GỤC
+    CheckAndRevive()
+    
     if tick() - FarmCooldown < 0.3 then return end
     
-    local isWaiting, state = CheckMapState()
-    if isWaiting then
-        FarmCooldown = tick()
+    local eventActive, eventName, eventTime = ScanGameForEvent()
+    
+    if not eventActive then
+        if AutoFarm then
+            AutoFarm = false
+            if FarmConnection then
+                FarmConnection:Disconnect()
+                FarmConnection = nil
+            end
+            SendNotification("⛔ KHÔNG CÓ SỰ KIỆN!", "Không tìm thấy sự kiện trong game. Đã tự động tắt farm.", 5)
+            EventStatusLabel:Set("📌 Event: ❌ NONE")
+        end
         return
     end
     
@@ -634,10 +885,13 @@ local function FarmLoop()
 end
 
 -- =============================================
--- FARM LV LOOP
+-- FARM LV LOOP (CÓ TỰ ĐỘNG HỒI SINH)
 -- =============================================
 local function FarmLVLoop()
     if not FarmLV then return end
+    
+    -- TỰ ĐỘNG HỒI SINH NẾU BỊ HẠ GỤC
+    CheckAndRevive()
     
     CheckAndKeepOnWall()
     
@@ -657,7 +911,7 @@ local function FarmLVLoop()
 end
 
 -- =============================================
--- AUTO RESCUE (TỰ ĐỘNG CỨU NGƯỜI)
+-- AUTO RESCUE LOOP (CÓ TỰ ĐỘNG HỒI SINH)
 -- =============================================
 local function FindDownedPlayer()
     local LocalPlayer = game.Players.LocalPlayer
@@ -668,7 +922,6 @@ local function FindDownedPlayer()
         if player ~= LocalPlayer then
             local char = player.Character
             if char then
-                -- Kiểm tra nếu người chơi đang bị carry
                 local beingCarried = false
                 local humanoid = char:FindFirstChild("Humanoid")
                 if humanoid then
@@ -678,12 +931,10 @@ local function FindDownedPlayer()
                     end
                 end
                 
-                -- Bỏ qua nếu đang được carry
                 if beingCarried then
                     continue
                 end
                 
-                -- Kiểm tra health
                 if humanoid and humanoid.Health <= 0 then
                     local root = char:FindFirstChild("HumanoidRootPart")
                     if root then
@@ -695,7 +946,6 @@ local function FindDownedPlayer()
                     end
                 end
                 
-                -- Kiểm tra Downed state
                 local downedState = char:FindFirstChild("Downed")
                 if downedState then
                     local root = char:FindFirstChild("HumanoidRootPart")
@@ -717,10 +967,8 @@ end
 local function RescueLoop()
     if not AutoRescue then return end
     
-    local isWaiting, state = CheckMapState()
-    if isWaiting then
-        return
-    end
+    -- TỰ ĐỘNG HỒI SINH NẾU BỊ HẠ GỤC
+    CheckAndRevive()
     
     local LocalPlayer = game.Players.LocalPlayer
     local char = LocalPlayer.Character
@@ -741,14 +989,11 @@ local function RescueLoop()
         if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
             local targetPos = targetChar.HumanoidRootPart.Position
             
-            -- Tắt emote trước khi teleport
             StopEmote()
             
-            -- Teleport đến người bị hạ gục
             root.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0))
             wait(0.2)
             
-            -- Carry người chơi
             local humanoid = char:FindFirstChild("Humanoid")
             if humanoid then
                 pcall(function()
@@ -757,11 +1002,9 @@ local function RescueLoop()
                 end)
             end
             
-            -- Teleport về tường
             TeleportToWall()
             wait(0.3)
             
-            -- Thả người chơi xuống tường
             pcall(function()
                 local humanoid2 = char:FindFirstChild("Humanoid")
                 if humanoid2 then
@@ -769,7 +1012,6 @@ local function RescueLoop()
                 end
             end)
             
-            -- Cứu người chơi (Resurrect)
             if targetChar then
                 local targetHumanoid = targetChar:FindFirstChild("Humanoid")
                 if targetHumanoid then
@@ -785,7 +1027,6 @@ local function RescueLoop()
                 end
             end
             
-            -- Đảm bảo người được cứu đứng trên tường
             if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
                 local targetRoot = targetChar.HumanoidRootPart
                 targetRoot.CFrame = CFrame.new(SafeWall.Position + Vector3.new(0, 1.5, 0))
@@ -799,7 +1040,7 @@ end
 -- =============================================
 FarmTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
-    Description = "Tự động farm vật phẩm (sửa tên trong code)",
+    Description = "Tự động farm vật phẩm (có tự động hồi sinh)",
     CurrentValue = false,
     Callback = function(Value)
         AutoFarm = Value
@@ -812,20 +1053,36 @@ FarmTab:CreateToggle({
             IsWaitingForPause = false
             IsCollecting = false
             
-            local activeItems = GetActiveItems()
-            if #activeItems == 0 then
+            local eventActive, eventName, eventTime = ScanGameForEvent()
+            
+            if not eventActive then
                 AutoFarm = false
-                SendNotification("⚠️ Lỗi!", "Chưa có tên vật phẩm!", 3)
+                SendNotification("⛔ KHÔNG CÓ SỰ KIỆN!", "Không tìm thấy sự kiện trong game. Không thể bật farm.", 5)
+                EventStatusLabel:Set("📌 Event: ❌ NONE")
                 return
             end
             
-            local targetText = table.concat(activeItems, ", ")
-            EventStatusLabel:Set("📌 Item target: " .. targetText)
+            local activeItems = GetActiveItems()
+            if #activeItems == 0 then
+                AutoFarm = false
+                SendNotification("⚠️ Lỗi!", "Không có vật phẩm để farm!", 3)
+                return
+            end
+            
+            if eventName and eventName ~= "Unknown" then
+                EventStatusLabel:Set("📌 Event: ✅ " .. string.sub(eventName, 1, 30))
+            else
+                EventStatusLabel:Set("📌 Event: ✅ ACTIVE")
+            end
+            
+            if eventTime and eventTime ~= "Unknown" then
+                EventTimeLabel:Set("⏰ Time left: " .. eventTime)
+            end
             
             CurrentCurrency = GetCurrentCurrency()
             CurrentCurrencyLabel:Set("💰 Current currency: " .. CurrentCurrency)
             
-            SendNotification("⚡ Kích hoạt farm!", "🛡️ Bắt đầu quét...", 2)
+            SendNotification("⚡ Kích hoạt farm!", "🛡️ Sự kiện đang diễn ra!", 2)
             
             SendNotification("❗ Tạo tường...", "🕚 Đang tạo...", 2)
             CreateSafeWall(FindSafeWallPosition())
@@ -861,7 +1118,7 @@ local FarmLVSection = FarmTab:CreateSection("⭐ Auto Farm LV")
 
 FarmTab:CreateToggle({
     Name = "Auto Farm LV ⭐",
-    Description = "Tạo tường và giữ trên tường (có thể di chuyển)",
+    Description = "Tạo tường và giữ trên tường (có tự động hồi sinh)",
     CurrentValue = false,
     Callback = function(Value)
         FarmLV = Value
@@ -896,7 +1153,7 @@ local RescueSection = FarmTab:CreateSection("🏥 Auto Rescue")
 
 FarmTab:CreateToggle({
     Name = "Auto Rescue 🏥",
-    Description = "Tự động tìm và cứu người bị hạ gục",
+    Description = "Tự động tìm và cứu người bị hạ gục (có tự động hồi sinh)",
     CurrentValue = false,
     Callback = function(Value)
         AutoRescue = Value
@@ -928,6 +1185,41 @@ FarmTab:CreateToggle({
                 RescueConnection = nil 
             end
             SendNotification("⏹️ Đã tắt!", "Đã dừng cứu người.", 2)
+        end
+    end
+})
+
+-- =============================================
+-- TOGGLE REVIVE YOURSELF (TRONG TAB SELF-MECHANISM)
+-- =============================================
+SelfTab:CreateToggle({
+    Name = "Revive Yourself 💀",
+    Description = "Tự động hồi sinh khi bị NextBot hạ gục",
+    CurrentValue = false,
+    Callback = function(Value)
+        ReviveSelf = Value
+        
+        if ReviveSelf then
+            SendNotification("⚡ Đã kích hoạt hồi sinh bản thân...", "🤫 Có những con gà mà người chơi không biết", 3)
+            
+            if ReviveConnection then 
+                ReviveConnection:Disconnect() 
+            end
+            
+            ReviveConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if ReviveSelf then 
+                    pcall(CheckAndRevive) 
+                end
+            end)
+            
+            print("[Revive] Đã bật tự động hồi sinh!")
+        else
+            if ReviveConnection then 
+                ReviveConnection:Disconnect() 
+                ReviveConnection = nil 
+            end
+            SendNotification("⏹️ Đã tắt hồi sinh!", "Đã dừng tự động hồi sinh.", 2)
+            print("[Revive] Đã tắt tự động hồi sinh!")
         end
     end
 })
@@ -983,13 +1275,15 @@ end
 UpdateServerInfo()
 
 -- =============================================
--- CẬP NHẬP TỰ ĐỘNG (TỐI ƯU GIẢM LAG)
+-- CẬP NHẬP TỰ ĐỘNG
 -- =============================================
 game:GetService("RunService").Heartbeat:Connect(function()
     UpdateCounter = UpdateCounter + 1
     if UpdateCounter % 3 ~= 0 then return end
     
     pcall(function()
+        UpdateEventStatus()
+        
         local items = FindEventItems()
         TotalItems = #items
         CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
@@ -1011,10 +1305,12 @@ end)
 FarmTab:CreateSection("📋 Information")
 FarmTab:CreateLabel("👤 Author: Nate & Ngọt")
 FarmTab:CreateLabel("📱 Compatible: Delta v2.731")
-FarmTab:CreateLabel("🎯 Farm nhanh - Sửa tên trong code")
-FarmTab:CreateLabel("🏥 Auto Rescue - Tự động cứu người")
+FarmTab:CreateLabel("🎯 Sửa tên vật phẩm trong code (10 chỗ)")
 
 print("========================================")
 print("[Nexus Hub] Loaded successfully!")
 print("[Nexus Hub] Author: Nate & Ngọt")
 print("========================================")
+
+wait(1)
+UpdateEventStatus()
