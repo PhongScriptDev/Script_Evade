@@ -61,10 +61,9 @@ local FarmLoopCount = 0
 local SafeWall = nil
 local WallPosition = nil
 local EventActive = false
-local LastEventCheck = 0
 
 -- =============================================
--- HÀM TÌM VẬT PHẨM SỰ KIỆN (KHÔNG DÙNG TÊN - QUÉT TOÀN DIỆN)
+-- HÀM TÌM VẬT PHẨM SỰ KIỆN
 -- =============================================
 local function FindEventItems()
     local items = {}
@@ -77,86 +76,12 @@ local function FindEventItems()
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsDescendantOf(character) then continue end
         
-        local isEventItem = false
-        local position = nil
         local clickDetector = obj:FindFirstChild("ClickDetector")
         local proximityPrompt = obj:FindFirstChild("ProximityPrompt")
         
-        -- CÁCH 1: PHÁT HIỆN QUA TƯƠNG TÁC
         if clickDetector or proximityPrompt then
-            isEventItem = true
-        end
-        
-        -- CÁCH 2: PHÁT HIỆN QUA ATTRIBUTE
-        if not isEventItem then
-            local attrs = obj:GetAttributes()
-            if next(attrs) then
-                for attrName, attrValue in pairs(attrs) do
-                    local nameLower = attrName:lower()
-                    if nameLower:find("collect") or nameLower:find("event") or 
-                       nameLower:find("currency") or nameLower:find("reward") or
-                       nameLower:find("item") or nameLower:find("pickup") or
-                       nameLower:find("value") or nameLower:find("point") then
-                        isEventItem = true
-                        break
-                    end
-                    if type(attrValue) == "number" and attrValue > 0 then
-                        isEventItem = true
-                        break
-                    end
-                end
-            end
-        end
-        
-        -- CÁCH 3: PHÁT HIỆN QUA FOLDER CHỨA
-        if not isEventItem then
-            local parent = obj.Parent
-            while parent do
-                local parentName = parent.Name:lower()
-                if parentName:find("collect") or parentName:find("event") or 
-                   parentName:find("currency") or parentName:find("item") or
-                   parentName:find("reward") or parentName:find("pickup") then
-                    isEventItem = true
-                    break
-                end
-                parent = parent.Parent
-            end
-        end
-        
-        -- CÁCH 4: PHÁT HIỆN QUA SCRIPT
-        if not isEventItem then
-            for _, script in ipairs(obj:GetChildren()) do
-                if script:IsA("Script") or script:IsA("LocalScript") then
-                    local src = script.Source or ""
-                    if src:find("collect") or src:find("pickup") or 
-                       src:find("click") or src:find("prompt") or
-                       src:find("event") or src:find("reward") then
-                        isEventItem = true
-                        break
-                    end
-                end
-            end
-        end
-        
-        -- CÁCH 5: PHÁT HIỆN QUA VỊ TRÍ (VẬT PHẨM TRÊN MẶT ĐẤT)
-        if not isEventItem and obj:IsA("BasePart") then
-            local pos = obj.Position
-            local raycastParams = RaycastParams.new()
-            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-            raycastParams.FilterDescendantsInstances = {character}
-            local rayOrigin = pos + Vector3.new(0, 5, 0)
-            local rayDirection = Vector3.new(0, -10, 0)
-            local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+            local position = nil
             
-            if rayResult then
-                local dist = (rootPos.Position - pos).Magnitude
-                if dist > 10 and dist < 500 then
-                    isEventItem = true
-                end
-            end
-        end
-        
-        if isEventItem then
             if obj:IsA("BasePart") then
                 position = obj.Position
             elseif obj:IsA("Model") then
@@ -183,7 +108,6 @@ local function FindEventItems()
                 table.insert(items, {
                     object = obj,
                     position = position,
-                    name = obj.Name,
                     distance = (rootPos.Position - position).Magnitude,
                     clickDetector = clickDetector,
                     proximityPrompt = proximityPrompt
@@ -200,23 +124,27 @@ local function FindEventItems()
 end
 
 -- =============================================
--- HÀM CẬP NHẬT LABEL
+-- HÀM CẬP NHẬT LABEL (FIX LỖI)
 -- =============================================
 local function UpdateLabels()
     pcall(function()
+        -- Cập nhật Event Items
         local items = FindEventItems()
         TotalItems = #items
         CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
         
+        -- Cập nhật Level và Exp
         local LocalPlayer = game.Players.LocalPlayer
         local stats = LocalPlayer:FindFirstChild("leaderstats")
         if stats then
             local level = stats:FindFirstChild("Level")
+            local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
+            local expToNext = stats:FindFirstChild("ExpToNext") or stats:FindFirstChild("ExperienceToNext")
+            
             if level then
                 LevelLabel:Set("⭐ Current Level: " .. level.Value)
             end
-            local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
-            local expToNext = stats:FindFirstChild("ExpToNext") or stats:FindFirstChild("ExperienceToNext")
+            
             if exp and expToNext then
                 ExpLabel:Set("✨ Exp: " .. exp.Value .. " / " .. expToNext.Value)
             elseif exp then
@@ -224,6 +152,7 @@ local function UpdateLabels()
             end
         end
         
+        -- Cập nhật trạng thái event
         if TotalItems > 0 then
             EventActive = true
             EventStatusLabel:Set("⏰ Event: ✅ ACTIVE (" .. TotalItems .. " items)")
@@ -236,29 +165,6 @@ end
 
 -- Gọi ngay khi chạy
 UpdateLabels()
-
--- =============================================
--- HÀM KIỂM TRA SỰ KIỆN
--- =============================================
-local function CheckEventStatus()
-    pcall(function()
-        local items = FindEventItems()
-        local count = #items
-        
-        if count > 0 then
-            EventActive = true
-            EventStatusLabel:Set("⏰ Event: ✅ ACTIVE (" .. count .. " items)")
-            CurrencyLabel:Set("🎯 Event Items: " .. count)
-        else
-            EventActive = false
-            EventStatusLabel:Set("⏰ Event: ❌ NONE")
-            CurrencyLabel:Set("🎯 Event Items: 0")
-        end
-        
-        return EventActive
-    end)
-    return EventActive
-end
 
 -- =============================================
 -- TƯỜNG AN TOÀN
@@ -328,40 +234,16 @@ local function CollectItem(item)
     
     if success then
         CollectedCount = CollectedCount + 1
-        CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
-        Rayfield:Notify({
-            Title = "✅ Đã nhặt!",
-            Content = "Đã nhặt #" .. CollectedCount,
-            Duration = 2,
-            Image = 0
-        })
         return true
     end
     return false
 end
 
 -- =============================================
--- FARM LOOP
+-- FARM LOOP (FIX LỖI)
 -- =============================================
 local function FarmLoop()
     if not AutoFarm then return end
-    
-    if not CheckEventStatus() then
-        if AutoFarm then
-            AutoFarm = false
-            if FarmConnection then
-                FarmConnection:Disconnect()
-                FarmConnection = nil
-            end
-            Rayfield:Notify({
-                Title = "⛔ Không có event!",
-                Content = "Đã dừng Auto Farm.",
-                Duration = 5,
-                Image = 0
-            })
-        end
-        return
-    end
     
     FarmLoopCount = FarmLoopCount + 1
     if FarmLoopCount % 3 ~= 0 then return end
@@ -378,21 +260,11 @@ local function FarmLoop()
         return
     end
     
-    local gameState = workspace:FindFirstChild("GameState")
-    if gameState then
-        local stateText = tostring(gameState.Value or "")
-        if stateText:lower():find("voting") or stateText:lower():find("paused") then
-            if not IsAtWall then
-                TeleportToWall()
-            end
-            FarmCooldown = tick()
-            return
-        end
-    end
-    
+    -- Tìm vật phẩm event
     local items = FindEventItems()
     TotalItems = #items
     
+    -- Nếu không có vật phẩm -> về tường
     if TotalItems == 0 then
         if not IsAtWall then
             TeleportToWall()
@@ -401,6 +273,7 @@ local function FarmLoop()
         return
     end
     
+    -- Lấy vật phẩm gần nhất
     local currentPos = root.Position
     local nearestItem = items[1]
     
@@ -411,18 +284,22 @@ local function FarmLoop()
     
     local distToItem = (currentPos - nearestItem.position).Magnitude
     
+    -- Nếu đang ở tường -> teleport đến vật phẩm
     if IsAtWall then
         TeleportToItem(nearestItem.position)
         FarmCooldown = tick()
         return
     end
     
+    -- Nếu không ở tường
     if not IsAtWall then
+        -- Nếu đã đến gần vật phẩm -> nhặt và về tường
         if distToItem < 15 then
             CollectItem(nearestItem)
             TeleportToWall()
             FarmCooldown = tick()
         else
+            -- Nếu chưa đến gần -> teleport đến vật phẩm
             TeleportToItem(nearestItem.position)
             FarmCooldown = tick()
         end
@@ -441,32 +318,16 @@ FarmTab:CreateToggle({
         AutoFarm = Value
         
         if AutoFarm then
-            if not CheckEventStatus() then
-                Rayfield:Notify({
-                    Title = "⛔ Không có event!",
-                    Content = "Không có event nào đang diễn ra. Không thể bật.",
-                    Duration = 5,
-                    Image = 0
-                })
-                AutoFarm = false
-                return
-            end
-            
             CollectedCount = 0
             IsAtWall = false
             FarmLoopCount = 0
             
-            Rayfield:Notify({
-                Title = "✅ Đã bật Auto Farm!",
-                Content = "Đang tạo tường và bắt đầu farm...",
-                Duration = 3,
-                Image = 0
-            })
-            
+            -- Tạo tường và teleport lên
             CreateSafeWall(FindSafeWallPosition())
             wait(0.5)
             TeleportToWall()
             
+            -- Bắt đầu farm
             if FarmConnection then 
                 FarmConnection:Disconnect() 
             end
@@ -482,12 +343,6 @@ FarmTab:CreateToggle({
                 FarmConnection:Disconnect() 
                 FarmConnection = nil 
             end
-            Rayfield:Notify({
-                Title = "⏹️ Đã tắt!",
-                Content = "Tổng cộng đã nhặt: " .. CollectedCount .. " vật phẩm",
-                Duration = 3,
-                Image = 0
-            })
         end
     end
 })
@@ -517,12 +372,6 @@ FarmTab:CreateToggle({
     Callback = function(Value)
         FarmLV = Value
         if FarmLV then
-            Rayfield:Notify({
-                Title = "⭐ Đã bật Farm LV!",
-                Content = "Đang tạo tường...",
-                Duration = 3,
-                Image = 0
-            })
             CreateSafeWall(FindSafeWallPosition())
             if SafeWall then SafeWall.Size = Vector3.new(50, 2, 50) end
             wait(0.3)
@@ -534,12 +383,6 @@ FarmTab:CreateToggle({
             end)
         else
             if FarmLVConnection then FarmLVConnection:Disconnect() FarmLVConnection = nil end
-            Rayfield:Notify({
-                Title = "⏹️ Đã tắt Farm LV!",
-                Content = "Đã dừng farm LV.",
-                Duration = 3,
-                Image = 0
-            })
         end
     end
 })
@@ -611,13 +454,11 @@ FarmTab:CreateSection("📋 Information")
 FarmTab:CreateLabel("👤 Author: Nate & Ngọt")
 FarmTab:CreateLabel("📱 Compatible: Delta v2.731")
 FarmTab:CreateLabel("🎯 Auto detect ANY event - No name/value needed")
-FarmTab:CreateLabel("🔄 Works even if admin changes item names/values")
 
 print("========================================")
 print("[Nexus Hub] Loaded successfully!")
 print("[Nexus Hub] Author: Nate & Ngọt")
-print("[Nexus Hub] Auto detect ANY event - No name/value needed")
 print("========================================")
 
 wait(1)
-CheckEventStatus()
+UpdateLabels()
