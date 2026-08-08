@@ -45,71 +45,24 @@ local LevelLabel = FarmTab:CreateLabel("⭐ Current Level: 0")
 local ExpLabel = FarmTab:CreateLabel("✨ Exp: 0 / 0")
 local EventStatusLabel = FarmTab:CreateLabel("📌 Item target: Bubble")
 
--- SECTION 2: NHẬP TÊN VẬT PHẨM
-local NameSection = FarmTab:CreateSection("📝 Enter Item Names")
-
-local ItemName1 = FarmTab:CreateInput({
-   Name = "🎈 Bubble",
-   Description = "✅ Main Summer 2026 currency - Đang hoạt động",
-   PlaceholderText = "Bubble",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      UpdateItemNameList()
-   end
-})
-
-local ItemName2 = FarmTab:CreateInput({
-   Name = "🥥 Coconut",
-   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
-   PlaceholderText = "none",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      UpdateItemNameList()
-   end
-})
-
-local ItemName3 = FarmTab:CreateInput({
-   Name = "🎁 Gift",
-   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
-   PlaceholderText = "none",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      UpdateItemNameList()
-   end
-})
-
-local ItemName4 = FarmTab:CreateInput({
-   Name = "🎀 Present",
-   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
-   PlaceholderText = "none",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      UpdateItemNameList()
-   end
-})
-
-local ItemName5 = FarmTab:CreateInput({
-   Name = "🍬 Candy",
-   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
-   PlaceholderText = "none",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      UpdateItemNameList()
-   end
-})
-
-local ItemName6 = FarmTab:CreateInput({
-   Name = "⭐ Extra Item",
-   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
-   PlaceholderText = "none",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      UpdateItemNameList()
-   end
-})
-
--- SECTION 3: AUTO FARM EVENT
+-- SECTION 2: AUTO FARM EVENT
 local FarmEventSection = FarmTab:CreateSection("🎈 Auto Farm Event")
+
+-- =============================================
+-- 🔧 DANH SÁCH TÊN VẬT PHẨM (SỬA TẠI ĐÂY)
+-- =============================================
+local ItemNameList = {
+   "Bubble",
+   "none",
+   "none",
+   "none",
+   "none",
+   "none",
+   "none",
+   "none",
+   "none",
+   "none",
+}
 
 -- =============================================
 -- BIẾN TOÀN CỤC
@@ -122,34 +75,18 @@ local IsAtWall = false
 local FarmCooldown = 0
 local SafeWall = nil
 local WallPosition = nil
-local ItemNameList = {}
 local LastNotifyTime = 0
 
--- =============================================
--- HÀM CẬP NHẬT DANH SÁCH TÊN
--- =============================================
-local function UpdateItemNameList()
-    ItemNameList = {}
-    
-    local name1 = ItemName1:GetValue() or ""
-    local name2 = ItemName2:GetValue() or ""
-    local name3 = ItemName3:GetValue() or ""
-    local name4 = ItemName4:GetValue() or ""
-    local name5 = ItemName5:GetValue() or ""
-    local name6 = ItemName6:GetValue() or ""
-    
-    if name1 ~= "" and name1:lower() ~= "none" then table.insert(ItemNameList, name1) end
-    if name2 ~= "" and name2:lower() ~= "none" then table.insert(ItemNameList, name2) end
-    if name3 ~= "" and name3:lower() ~= "none" then table.insert(ItemNameList, name3) end
-    if name4 ~= "" and name4:lower() ~= "none" then table.insert(ItemNameList, name4) end
-    if name5 ~= "" and name5:lower() ~= "none" then table.insert(ItemNameList, name5) end
-    if name6 ~= "" and name6:lower() ~= "none" then table.insert(ItemNameList, name6) end
-    
-    if #ItemNameList > 0 then
-        EventStatusLabel:Set("📌 Item target: " .. table.concat(ItemNameList, ", "))
-    else
-        EventStatusLabel:Set("📌 Item target: None")
+-- Lọc danh sách (bỏ qua "none")
+local function GetActiveItems()
+    local active = {}
+    for _, name in ipairs(ItemNameList) do
+        local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
+        if trimmed ~= "" and trimmed:lower() ~= "none" then
+            table.insert(active, trimmed)
+        end
     end
+    return active
 end
 
 -- =============================================
@@ -180,7 +117,8 @@ local function FindEventItems()
     local rootPos = character:FindFirstChild("HumanoidRootPart")
     if not rootPos then return items end
     
-    if #ItemNameList == 0 then
+    local activeItems = GetActiveItems()
+    if #activeItems == 0 then
         return items
     end
     
@@ -190,7 +128,7 @@ local function FindEventItems()
         local objName = obj.Name or ""
         local isMatch = false
         
-        for _, itemName in ipairs(ItemNameList) do
+        for _, itemName in ipairs(activeItems) do
             if objName:lower():find(itemName:lower()) then
                 isMatch = true
                 break
@@ -273,21 +211,22 @@ local function CreateSafeWall(position)
     SafeWall.Color = Color3.fromRGB(0, 200, 255)
     SafeWall.Parent = workspace
     WallPosition = position
+    print("[Farm] Đã tạo tường tại:", position)
 end
 
 local function TeleportToWall()
     if not SafeWall then 
-        print("[Farm] Không có tường!")
+        print("[Farm] Lỗi: Không có tường!")
         return false 
     end
     local char = game.Players.LocalPlayer.Character
     if not char then 
-        print("[Farm] Không có nhân vật!")
+        print("[Farm] Lỗi: Không có nhân vật!")
         return false 
     end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then 
-        print("[Farm] Không có RootPart!")
+        print("[Farm] Lỗi: Không có RootPart!")
         return false 
     end
     root.CFrame = CFrame.new(SafeWall.Position + Vector3.new(0, 1, 0))
@@ -298,27 +237,38 @@ end
 
 local function TeleportToItem(targetPos)
     local char = game.Players.LocalPlayer.Character
-    if not char then return false end
+    if not char then 
+        print("[Farm] Lỗi: Không có nhân vật!")
+        return false 
+    end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
+    if not root then 
+        print("[Farm] Lỗi: Không có RootPart!")
+        return false 
+    end
     root.CFrame = CFrame.new(targetPos)
     IsAtWall = false
-    print("[Farm] Đã teleport đến vật phẩm!")
+    print("[Farm] Đã teleport đến vật phẩm tại:", targetPos)
     return true
 end
 
 local function CollectItem(item)
-    if not item then return false end
+    if not item then 
+        print("[Farm] Lỗi: Không có vật phẩm để nhặt!")
+        return false 
+    end
     
     local success = false
     pcall(function()
         if item.clickDetector then
             item.clickDetector:FireClick()
             success = true
+            print("[Farm] Đã nhặt qua ClickDetector!")
         end
         if item.proximityPrompt then
             item.proximityPrompt:Fire()
             success = true
+            print("[Farm] Đã nhặt qua ProximityPrompt!")
         end
     end)
     
@@ -332,47 +282,44 @@ local function CollectItem(item)
 end
 
 -- =============================================
-local function IsAllItemsNone()
-    local name1 = ItemName1:GetValue() or ""
-    local name2 = ItemName2:GetValue() or ""
-    local name3 = ItemName3:GetValue() or ""
-    local name4 = ItemName4:GetValue() or ""
-    local name5 = ItemName5:GetValue() or ""
-    local name6 = ItemName6:GetValue() or ""
-    
-    if name1 ~= "" and name1:lower() ~= "none" then return false end
-    if name2 ~= "" and name2:lower() ~= "none" then return false end
-    if name3 ~= "" and name3:lower() ~= "none" then return false end
-    if name4 ~= "" and name4:lower() ~= "none" then return false end
-    if name5 ~= "" and name5:lower() ~= "none" then return false end
-    if name6 ~= "" and name6:lower() ~= "none" then return false end
-    
-    return true
-end
-
--- =============================================
 -- FARM LOOP
 -- =============================================
 local function FarmLoop()
-    if not AutoFarm then return end
-    if tick() - FarmCooldown < 0.5 then return end
+    if not AutoFarm then 
+        print("[Farm] AutoFarm đang tắt!")
+        return 
+    end
+    
+    if tick() - FarmCooldown < 0.5 then 
+        return 
+    end
     
     local LocalPlayer = game.Players.LocalPlayer
     local char = LocalPlayer.Character
-    if not char then return end
+    if not char then 
+        print("[Farm] Lỗi: Không có nhân vật!")
+        return 
+    end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    if not root then 
+        print("[Farm] Lỗi: Không có RootPart!")
+        return 
+    end
     
     if char:GetAttribute("Downed") then
+        print("[Farm] Đang bị gục!")
         FarmCooldown = tick()
         return
     end
     
+    -- Quét tìm vật phẩm
+    print("[Farm] Đang quét tìm vật phẩm...")
     local items = FindEventItems()
     TotalItems = #items
     CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
     
     if TotalItems == 0 then
+        print("[Farm] Không tìm thấy vật phẩm!")
         if not IsAtWall then
             TeleportToWall()
         end
@@ -384,13 +331,16 @@ local function FarmLoop()
     local nearestItem = items[1]
     
     if not nearestItem then
+        print("[Farm] Lỗi: Không có vật phẩm gần nhất!")
         FarmCooldown = tick()
         return
     end
     
     local distToItem = (currentPos - nearestItem.position).Magnitude
+    print("[Farm] Vật phẩm gần nhất cách:", distToItem, "studs")
     
     if IsAtWall then
+        print("[Farm] Đang ở tường, teleport đến vật phẩm...")
         SendNotification("❗ Đã thấy vật phẩm", "📌 Đang tiến hành đến vật phẩm...", 2)
         TeleportToItem(nearestItem.position)
         FarmCooldown = tick()
@@ -398,11 +348,13 @@ local function FarmLoop()
     end
     
     if distToItem < 15 then
+        print("[Farm] Đã đến gần vật phẩm, đang nhặt...")
         local collected = CollectItem(nearestItem)
         if collected then
             TeleportToWall()
             SendNotification("📍 Về tường", "🔄 Đã teleport về tường thành công!", 2)
         else
+            print("[Farm] Nhặt thất bại, thử lại...")
             TeleportToItem(nearestItem.position)
             wait(0.2)
             CollectItem(nearestItem)
@@ -412,6 +364,7 @@ local function FarmLoop()
         return
     end
     
+    print("[Farm] Teleport đến vật phẩm...")
     TeleportToItem(nearestItem.position)
     FarmCooldown = tick()
 end
@@ -421,35 +374,40 @@ end
 -- =============================================
 FarmTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
-    Description = "Farm items by name (enter names above)",
+    Description = "Tự động farm Bubble (sửa tên trong code)",
     CurrentValue = false,
     Callback = function(Value)
+        print("[Farm] Toggle được bật/tắt:", Value)
         AutoFarm = Value
         
         if AutoFarm then
+            print("[Farm] Đang bật Auto Farm...")
             CollectedCount = 0
             IsAtWall = false
             
-            UpdateItemNameList()
-            
-            if IsAllItemsNone() then
+            local activeItems = GetActiveItems()
+            if #activeItems == 0 then
+                print("[Farm] Lỗi: Không có tên vật phẩm!")
                 AutoFarm = false
-                SendNotification("🔔 Từ chối farm", "❗ Xin chào bạn gặp phải từ chối farm nghĩa là đang update hoặc giá trị của vật phẩm chưa nhìn thấy...", 5)
+                SendNotification("⚠️ Lỗi!", "Chưa có tên vật phẩm trong code!", 5)
                 return
             end
             
-            if #ItemNameList == 0 then
-                AutoFarm = false
-                SendNotification("⚠️ Lỗi!", "Vui lòng nhập tên vật phẩm ở trên", 5)
-                return
-            end
+            -- Cập nhật label
+            local targetText = table.concat(activeItems, ", ")
+            EventStatusLabel:Set("📌 Item target: " .. targetText)
+            print("[Farm] Mục tiêu:", targetText)
             
             SendNotification("⚡ Đã kích hoạt farm event", "🛡️ Tự động hóa quét toàn bộ...", 3)
             
+            -- Tạo tường
+            print("[Farm] Đang tạo tường...")
             SendNotification("❗ Đang tạo tường...", "🕚 Sẽ mất 1 khoảng thời gian để tạo xin vui lòng chờ...", 3)
             CreateSafeWall(FindSafeWallPosition())
             wait(0.5)
             
+            -- Teleport lên tường
+            print("[Farm] Đang teleport lên tường...")
             SendNotification("🛡️ Thông báo tạo tường...", "🗡️ Đang teleporting lên tường...", 2)
             TeleportToWall()
             SendNotification("✅ Teleporting thành công!", "✔️ Đã lên tường an toàn!", 2)
@@ -458,17 +416,21 @@ FarmTab:CreateToggle({
                 FarmConnection:Disconnect() 
             end
             
+            print("[Farm] Bắt đầu farm loop...")
             FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 if AutoFarm then 
                     pcall(FarmLoop) 
                 end
             end)
+            print("[Farm] Auto Farm đã bật thành công!")
         else
+            print("[Farm] Đang tắt Auto Farm...")
             if FarmConnection then 
                 FarmConnection:Disconnect() 
                 FarmConnection = nil 
             end
             SendNotification("⏹️ Đã tắt!", "Auto Farm đã dừng lại.", 3)
+            print("[Farm] Auto Farm đã tắt!")
         end
     end
 })
@@ -490,7 +452,7 @@ end
 
 FarmTab:CreateToggle({
     Name = "Auto Farm LV ⭐",
-    Description = "Create wide wall and teleport up to farm LV",
+    Description = "Tạo tường rộng và teleport lên để farm LV",
     CurrentValue = false,
     Callback = function(Value)
         FarmLV = Value
@@ -601,12 +563,8 @@ end)
 FarmTab:CreateSection("📋 Information")
 FarmTab:CreateLabel("👤 Author: Nate & Ngọt")
 FarmTab:CreateLabel("📱 Compatible: Delta v2.731")
-FarmTab:CreateLabel("📝 Enter item names above (type 'none' to skip)")
 
 print("========================================")
 print("[Nexus Hub] Loaded successfully!")
 print("[Nexus Hub] Author: Nate & Ngọt")
 print("========================================")
-
-wait(1)
-UpdateItemNameList()
