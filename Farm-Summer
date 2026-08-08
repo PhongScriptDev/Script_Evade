@@ -40,7 +40,6 @@ local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
 -- SECTION 1: THÔNG TIN FARM
 local InfoSection = FarmTab:CreateSection("📊 Farm Information")
 
--- Tạo label (sẽ cập nhật sau)
 local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items: 0")
 local LevelLabel = FarmTab:CreateLabel("⭐ Current Level: 0")
 local ExpLabel = FarmTab:CreateLabel("✨ Exp: 0 / 0")
@@ -65,7 +64,7 @@ local EventActive = false
 local LastEventCheck = 0
 
 -- =============================================
--- HÀM TÌM VẬT PHẨM SỰ KIỆN
+-- HÀM TÌM VẬT PHẨM SỰ KIỆN (KHÔNG DÙNG TÊN - QUÉT TOÀN DIỆN)
 -- =============================================
 local function FindEventItems()
     local items = {}
@@ -78,74 +77,117 @@ local function FindEventItems()
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsDescendantOf(character) then continue end
         
+        local isEventItem = false
+        local position = nil
         local clickDetector = obj:FindFirstChild("ClickDetector")
         local proximityPrompt = obj:FindFirstChild("ProximityPrompt")
         
+        -- CÁCH 1: PHÁT HIỆN QUA TƯƠNG TÁC
         if clickDetector or proximityPrompt then
-            local isEventItem = false
-            local position = nil
-            
-            -- Kiểm tra attribute
-            local attrs = {"CurrencyType", "EventCurrency", "Collectible", "Currency", "Reward", "Value", "Points", "Collectable", "Pickup", "Item", "EventItem"}
-            for _, attr in ipairs(attrs) do
-                if obj:GetAttribute(attr) ~= nil then
+            isEventItem = true
+        end
+        
+        -- CÁCH 2: PHÁT HIỆN QUA ATTRIBUTE
+        if not isEventItem then
+            local attrs = obj:GetAttributes()
+            if next(attrs) then
+                for attrName, attrValue in pairs(attrs) do
+                    local nameLower = attrName:lower()
+                    if nameLower:find("collect") or nameLower:find("event") or 
+                       nameLower:find("currency") or nameLower:find("reward") or
+                       nameLower:find("item") or nameLower:find("pickup") or
+                       nameLower:find("value") or nameLower:find("point") then
+                        isEventItem = true
+                        break
+                    end
+                    if type(attrValue) == "number" and attrValue > 0 then
+                        isEventItem = true
+                        break
+                    end
+                end
+            end
+        end
+        
+        -- CÁCH 3: PHÁT HIỆN QUA FOLDER CHỨA
+        if not isEventItem then
+            local parent = obj.Parent
+            while parent do
+                local parentName = parent.Name:lower()
+                if parentName:find("collect") or parentName:find("event") or 
+                   parentName:find("currency") or parentName:find("item") or
+                   parentName:find("reward") or parentName:find("pickup") then
                     isEventItem = true
                     break
                 end
+                parent = parent.Parent
             end
+        end
+        
+        -- CÁCH 4: PHÁT HIỆN QUA SCRIPT
+        if not isEventItem then
+            for _, script in ipairs(obj:GetChildren()) do
+                if script:IsA("Script") or script:IsA("LocalScript") then
+                    local src = script.Source or ""
+                    if src:find("collect") or src:find("pickup") or 
+                       src:find("click") or src:find("prompt") or
+                       src:find("event") or src:find("reward") then
+                        isEventItem = true
+                        break
+                    end
+                end
+            end
+        end
+        
+        -- CÁCH 5: PHÁT HIỆN QUA VỊ TRÍ (VẬT PHẨM TRÊN MẶT ĐẤT)
+        if not isEventItem and obj:IsA("BasePart") then
+            local pos = obj.Position
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+            raycastParams.FilterDescendantsInstances = {character}
+            local rayOrigin = pos + Vector3.new(0, 5, 0)
+            local rayDirection = Vector3.new(0, -10, 0)
+            local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
             
-            -- Kiểm tra tên ClickDetector
-            if not isEventItem and clickDetector then
-                local detName = clickDetector.Name:lower()
-                if detName:find("collect") or detName:find("pickup") or detName:find("event") or detName:find("currency") or detName:find("item") then
+            if rayResult then
+                local dist = (rootPos.Position - pos).Magnitude
+                if dist > 10 and dist < 500 then
                     isEventItem = true
                 end
             end
-            
-            -- Kiểm tra folder chứa
-            if not isEventItem then
-                local parent = obj.Parent
-                if parent then
-                    local parentName = parent.Name:lower()
-                    if parentName:find("collect") or parentName:find("event") or parentName:find("currency") or parentName:find("item") or parentName:find("pickup") then
-                        isEventItem = true
+        end
+        
+        if isEventItem then
+            if obj:IsA("BasePart") then
+                position = obj.Position
+            elseif obj:IsA("Model") then
+                if obj:FindFirstChild("PrimaryPart") then
+                    position = obj.PrimaryPart.Position
+                elseif obj:FindFirstChild("HumanoidRootPart") then
+                    position = obj.HumanoidRootPart.Position
+                elseif obj:FindFirstChild("Head") then
+                    position = obj.Head.Position
+                else
+                    local sumPos = Vector3.new(0, 0, 0)
+                    local count = 0
+                    for _, part in ipairs(obj:GetChildren()) do
+                        if part:IsA("BasePart") then
+                            sumPos = sumPos + part.Position
+                            count = count + 1
+                        end
                     end
+                    if count > 0 then position = sumPos / count end
                 end
             end
             
-            if isEventItem then
-                if obj:IsA("BasePart") then
-                    position = obj.Position
-                elseif obj:IsA("Model") then
-                    if obj:FindFirstChild("PrimaryPart") then
-                        position = obj.PrimaryPart.Position
-                    elseif obj:FindFirstChild("HumanoidRootPart") then
-                        position = obj.HumanoidRootPart.Position
-                    elseif obj:FindFirstChild("Head") then
-                        position = obj.Head.Position
-                    else
-                        local sumPos = Vector3.new(0, 0, 0)
-                        local count = 0
-                        for _, part in ipairs(obj:GetChildren()) do
-                            if part:IsA("BasePart") then
-                                sumPos = sumPos + part.Position
-                                count = count + 1
-                            end
-                        end
-                        if count > 0 then position = sumPos / count end
-                    end
-                end
-                
-                if position then
-                    table.insert(items, {
-                        object = obj,
-                        position = position,
-                        name = obj.Name,
-                        distance = (rootPos.Position - position).Magnitude,
-                        clickDetector = clickDetector,
-                        proximityPrompt = proximityPrompt
-                    })
-                end
+            if position then
+                table.insert(items, {
+                    object = obj,
+                    position = position,
+                    name = obj.Name,
+                    distance = (rootPos.Position - position).Magnitude,
+                    clickDetector = clickDetector,
+                    proximityPrompt = proximityPrompt
+                })
             end
         end
     end
@@ -158,16 +200,14 @@ local function FindEventItems()
 end
 
 -- =============================================
--- HÀM CẬP NHẬT LABEL (QUAN TRỌNG - CẬP NHẬT TỪNG LABEL)
+-- HÀM CẬP NHẬT LABEL
 -- =============================================
 local function UpdateLabels()
     pcall(function()
-        -- 1. CẬP NHẬT EVENT ITEMS
         local items = FindEventItems()
         TotalItems = #items
         CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
         
-        -- 2. CẬP NHẬT LEVEL
         local LocalPlayer = game.Players.LocalPlayer
         local stats = LocalPlayer:FindFirstChild("leaderstats")
         if stats then
@@ -175,8 +215,6 @@ local function UpdateLabels()
             if level then
                 LevelLabel:Set("⭐ Current Level: " .. level.Value)
             end
-            
-            -- 3. CẬP NHẬT EXP
             local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
             local expToNext = stats:FindFirstChild("ExpToNext") or stats:FindFirstChild("ExperienceToNext")
             if exp and expToNext then
@@ -186,7 +224,6 @@ local function UpdateLabels()
             end
         end
         
-        -- 4. CẬP NHẬT TRẠNG THÁI EVENT
         if TotalItems > 0 then
             EventActive = true
             EventStatusLabel:Set("⏰ Event: ✅ ACTIVE (" .. TotalItems .. " items)")
@@ -558,7 +595,7 @@ end
 UpdateServerInfo()
 
 -- =============================================
--- CẬP NHẬT TỰ ĐỘNG (QUAN TRỌNG - CHẠY LIÊN TỤC)
+-- CẬP NHẬT TỰ ĐỘNG
 -- =============================================
 game:GetService("RunService").Heartbeat:Connect(function()
     pcall(function()
@@ -582,8 +619,5 @@ print("[Nexus Hub] Author: Nate & Ngọt")
 print("[Nexus Hub] Auto detect ANY event - No name/value needed")
 print("========================================")
 
--- Cập nhật ngay khi chạy
-wait(0.5)
-UpdateLabels()
+wait(1)
 CheckEventStatus()
-print("[Nexus Hub] Sẵn sàng! Bật toggle Auto Farm Event để bắt đầu.")
