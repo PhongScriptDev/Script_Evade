@@ -57,13 +57,13 @@ local CollectedCount = 0
 local TotalItems = 0
 local IsAtWall = false
 local FarmCooldown = 0
-local FarmLoopCount = 0
 local SafeWall = nil
 local WallPosition = nil
 local EventActive = false
+local UpdateCounter = 0
 
 -- =============================================
--- HÀM TÌM VẬT PHẨM SỰ KIỆN
+-- HÀM TÌM VẬT PHẨM SỰ KIỆN (CHỈ CHẠY KHI CẦN)
 -- =============================================
 local function FindEventItems()
     local items = {}
@@ -124,16 +124,17 @@ local function FindEventItems()
 end
 
 -- =============================================
--- HÀM CẬP NHẬT LABEL (FIX LỖI)
+-- HÀM CẬP NHẬT LABEL (GIẢM TẦN SUẤT ĐỂ GIẢM LAG)
 -- =============================================
 local function UpdateLabels()
+    UpdateCounter = UpdateCounter + 1
+    if UpdateCounter % 2 ~= 0 then return end -- Chạy mỗi 2 lần heartbeat
+    
     pcall(function()
-        -- Cập nhật Event Items
         local items = FindEventItems()
         TotalItems = #items
         CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
         
-        -- Cập nhật Level và Exp
         local LocalPlayer = game.Players.LocalPlayer
         local stats = LocalPlayer:FindFirstChild("leaderstats")
         if stats then
@@ -152,7 +153,6 @@ local function UpdateLabels()
             end
         end
         
-        -- Cập nhật trạng thái event
         if TotalItems > 0 then
             EventActive = true
             EventStatusLabel:Set("⏰ Event: ✅ ACTIVE (" .. TotalItems .. " items)")
@@ -163,7 +163,7 @@ local function UpdateLabels()
     end)
 end
 
--- Gọi ngay khi chạy
+-- Gọi lần đầu
 UpdateLabels()
 
 -- =============================================
@@ -240,13 +240,10 @@ local function CollectItem(item)
 end
 
 -- =============================================
--- FARM LOOP (FIX LỖI)
+-- FARM LOOP (SỬA LỖI)
 -- =============================================
 local function FarmLoop()
     if not AutoFarm then return end
-    
-    FarmLoopCount = FarmLoopCount + 1
-    if FarmLoopCount % 3 ~= 0 then return end
     if tick() - FarmCooldown < 0.5 then return end
     
     local LocalPlayer = game.Players.LocalPlayer
@@ -260,11 +257,11 @@ local function FarmLoop()
         return
     end
     
-    -- Tìm vật phẩm event
+    -- Tìm vật phẩm
     local items = FindEventItems()
     TotalItems = #items
     
-    -- Nếu không có vật phẩm -> về tường
+    -- Không có vật phẩm -> về tường
     if TotalItems == 0 then
         if not IsAtWall then
             TeleportToWall()
@@ -273,7 +270,6 @@ local function FarmLoop()
         return
     end
     
-    -- Lấy vật phẩm gần nhất
     local currentPos = root.Position
     local nearestItem = items[1]
     
@@ -284,27 +280,24 @@ local function FarmLoop()
     
     local distToItem = (currentPos - nearestItem.position).Magnitude
     
-    -- Nếu đang ở tường -> teleport đến vật phẩm
+    -- Đang ở tường -> teleport đến vật phẩm
     if IsAtWall then
         TeleportToItem(nearestItem.position)
         FarmCooldown = tick()
         return
     end
     
-    -- Nếu không ở tường
-    if not IsAtWall then
-        -- Nếu đã đến gần vật phẩm -> nhặt và về tường
-        if distToItem < 15 then
-            CollectItem(nearestItem)
-            TeleportToWall()
-            FarmCooldown = tick()
-        else
-            -- Nếu chưa đến gần -> teleport đến vật phẩm
-            TeleportToItem(nearestItem.position)
-            FarmCooldown = tick()
-        end
+    -- Đang ở gần vật phẩm -> nhặt và về tường
+    if distToItem < 15 then
+        CollectItem(nearestItem)
+        TeleportToWall()
+        FarmCooldown = tick()
         return
     end
+    
+    -- Chưa đến gần -> teleport tiếp
+    TeleportToItem(nearestItem.position)
+    FarmCooldown = tick()
 end
 
 -- =============================================
@@ -320,14 +313,12 @@ FarmTab:CreateToggle({
         if AutoFarm then
             CollectedCount = 0
             IsAtWall = false
-            FarmLoopCount = 0
             
             -- Tạo tường và teleport lên
             CreateSafeWall(FindSafeWallPosition())
-            wait(0.5)
+            wait(0.3)
             TeleportToWall()
             
-            -- Bắt đầu farm
             if FarmConnection then 
                 FarmConnection:Disconnect() 
             end
@@ -337,7 +328,6 @@ FarmTab:CreateToggle({
                     pcall(FarmLoop) 
                 end
             end)
-            
         else
             if FarmConnection then 
                 FarmConnection:Disconnect() 
@@ -359,9 +349,6 @@ local function FarmLVLoop()
     if not SafeWall then
         CreateSafeWall(FindSafeWallPosition())
     end
-    if SafeWall and SafeWall.Size.Magnitude < 50 then
-        SafeWall.Size = Vector3.new(50, 2, 50)
-    end
     TeleportToWall()
 end
 
@@ -373,7 +360,6 @@ FarmTab:CreateToggle({
         FarmLV = Value
         if FarmLV then
             CreateSafeWall(FindSafeWallPosition())
-            if SafeWall then SafeWall.Size = Vector3.new(50, 2, 50) end
             wait(0.3)
             TeleportToWall()
             
@@ -438,7 +424,7 @@ end
 UpdateServerInfo()
 
 -- =============================================
--- CẬP NHẬT TỰ ĐỘNG
+-- CẬP NHẬT TỰ ĐỘNG (GIẢM TẦN SUẤT)
 -- =============================================
 game:GetService("RunService").Heartbeat:Connect(function()
     pcall(function()
@@ -453,7 +439,6 @@ end)
 FarmTab:CreateSection("📋 Information")
 FarmTab:CreateLabel("👤 Author: Nate & Ngọt")
 FarmTab:CreateLabel("📱 Compatible: Delta v2.731")
-FarmTab:CreateLabel("🎯 Auto detect ANY event - No name/value needed")
 
 print("========================================")
 print("[Nexus Hub] Loaded successfully!")
