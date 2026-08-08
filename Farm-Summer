@@ -76,6 +76,8 @@ local FarmCooldown = 0
 local SafeWall = nil
 local WallPosition = nil
 local LastNotifyTime = 0
+local RetryCount = 0
+local MaxRetries = 3
 
 -- Lọc danh sách (bỏ qua "none")
 local function GetActiveItems()
@@ -211,115 +213,168 @@ local function CreateSafeWall(position)
     SafeWall.Color = Color3.fromRGB(0, 200, 255)
     SafeWall.Parent = workspace
     WallPosition = position
-    print("[Farm] Đã tạo tường tại:", position)
 end
 
 local function TeleportToWall()
-    if not SafeWall then 
-        print("[Farm] Lỗi: Không có tường!")
-        return false 
-    end
+    if not SafeWall then return false end
     local char = game.Players.LocalPlayer.Character
-    if not char then 
-        print("[Farm] Lỗi: Không có nhân vật!")
-        return false 
-    end
+    if not char then return false end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then 
-        print("[Farm] Lỗi: Không có RootPart!")
-        return false 
-    end
+    if not root then return false end
     root.CFrame = CFrame.new(SafeWall.Position + Vector3.new(0, 1, 0))
     IsAtWall = true
-    print("[Farm] Đã teleport lên tường!")
     return true
 end
 
 local function TeleportToItem(targetPos)
     local char = game.Players.LocalPlayer.Character
-    if not char then 
-        print("[Farm] Lỗi: Không có nhân vật!")
-        return false 
-    end
+    if not char then return false end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then 
-        print("[Farm] Lỗi: Không có RootPart!")
-        return false 
-    end
+    if not root then return false end
     root.CFrame = CFrame.new(targetPos)
     IsAtWall = false
-    print("[Farm] Đã teleport đến vật phẩm tại:", targetPos)
     return true
 end
 
+-- =============================================
+-- HÀM NHẶT VẬT PHẨM (CÓ THỬ LẠI)
+-- =============================================
 local function CollectItem(item)
-    if not item then 
-        print("[Farm] Lỗi: Không có vật phẩm để nhặt!")
-        return false 
-    end
+    if not item then return false end
     
     local success = false
-    pcall(function()
-        if item.clickDetector then
+    
+    -- Thử nhặt qua ClickDetector
+    if item.clickDetector then
+        pcall(function()
             item.clickDetector:FireClick()
             success = true
-            print("[Farm] Đã nhặt qua ClickDetector!")
-        end
-        if item.proximityPrompt then
+        end)
+    end
+    
+    -- Thử nhặt qua ProximityPrompt
+    if not success and item.proximityPrompt then
+        pcall(function()
             item.proximityPrompt:Fire()
             success = true
-            print("[Farm] Đã nhặt qua ProximityPrompt!")
+        end)
+    end
+    
+    -- Nếu vẫn chưa nhặt được, thử di chuyển đến gần hơn
+    if not success then
+        local char = game.Players.LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local root = char.HumanoidRootPart
+            -- Di chuyển đến vị trí vật phẩm
+            root.CFrame = CFrame.new(item.position + Vector3.new(0, 0.5, 0))
+            wait(0.1)
+            
+            -- Thử lại ClickDetector
+            if item.clickDetector then
+                pcall(function()
+                    item.clickDetector:FireClick()
+                    success = true
+                end)
+            end
+            
+            -- Thử lại ProximityPrompt
+            if not success and item.proximityPrompt then
+                pcall(function()
+                    item.proximityPrompt:Fire()
+                    success = true
+                end)
+            end
         end
-    end)
+    end
     
     if success then
         CollectedCount = CollectedCount + 1
-        SendNotification("✔️ Nhận Thành Công!", "🔎 Giá trị vật phẩm: 1", 3)
-        SendNotification("🔔 Thông báo đã làm!", "🔎 Số lần làm xong: " .. CollectedCount, 3)
+        RetryCount = 0 -- Reset số lần thử lại
+        
+        -- GỬI THÔNG BÁO NHẬN VẬT PHẨM
+        SendNotification("✔️ Nhận Thành Công!", "🔎 Đã nhận: " .. item.name .. " (#" .. CollectedCount .. ")", 3)
+        SendNotification("📦 Tổng vật phẩm!", "🔎 Tổng cộng: " .. CollectedCount .. " vật phẩm", 3)
+        
         return true
     end
+    
     return false
 end
 
 -- =============================================
--- FARM LOOP
+-- HÀM THỬ NHẶT LẠI (KHI LỖI)
 -- =============================================
-local function FarmLoop()
-    if not AutoFarm then 
-        print("[Farm] AutoFarm đang tắt!")
-        return 
+local function RetryCollectItem(item)
+    if not item then return false end
+    
+    RetryCount = RetryCount + 1
+    print("[Farm] Thử nhặt lần " .. RetryCount .. "/" .. MaxRetries)
+    
+    -- Teleport lại đến vị trí vật phẩm
+    local char = game.Players.LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = CFrame.new(item.position + Vector3.new(0, 1, 0))
     end
     
-    if tick() - FarmCooldown < 0.5 then 
-        return 
+    wait(0.2)
+    
+    -- Thử nhặt lại
+    local success = false
+    if item.clickDetector then
+        pcall(function()
+            item.clickDetector:FireClick()
+            success = true
+        end)
     end
+    if not success and item.proximityPrompt then
+        pcall(function()
+            item.proximityPrompt:Fire()
+            success = true
+        end)
+    end
+    
+    if success then
+        CollectedCount = CollectedCount + 1
+        RetryCount = 0
+        SendNotification("✔️ Nhận Thành Công!", "🔎 Đã nhận: " .. item.name .. " (#" .. CollectedCount .. ")", 3)
+        SendNotification("📦 Tổng vật phẩm!", "🔎 Tổng cộng: " .. CollectedCount .. " vật phẩm", 3)
+        return true
+    end
+    
+    if RetryCount >= MaxRetries then
+        print("[Farm] Đã thử " .. MaxRetries .. " lần, bỏ qua vật phẩm này!")
+        RetryCount = 0
+        return false
+    end
+    
+    return false
+end
+
+-- =============================================
+-- FARM LOOP (FIX LỖI EMOTE + TELEPORT)
+-- =============================================
+local function FarmLoop()
+    if not AutoFarm then return end
+    
+    if tick() - FarmCooldown < 0.5 then return end
     
     local LocalPlayer = game.Players.LocalPlayer
     local char = LocalPlayer.Character
-    if not char then 
-        print("[Farm] Lỗi: Không có nhân vật!")
-        return 
-    end
+    if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then 
-        print("[Farm] Lỗi: Không có RootPart!")
-        return 
-    end
+    if not root then return end
     
     if char:GetAttribute("Downed") then
-        print("[Farm] Đang bị gục!")
         FarmCooldown = tick()
         return
     end
     
     -- Quét tìm vật phẩm
-    print("[Farm] Đang quét tìm vật phẩm...")
     local items = FindEventItems()
     TotalItems = #items
     CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
     
     if TotalItems == 0 then
-        print("[Farm] Không tìm thấy vật phẩm!")
         if not IsAtWall then
             TeleportToWall()
         end
@@ -331,40 +386,39 @@ local function FarmLoop()
     local nearestItem = items[1]
     
     if not nearestItem then
-        print("[Farm] Lỗi: Không có vật phẩm gần nhất!")
         FarmCooldown = tick()
         return
     end
     
     local distToItem = (currentPos - nearestItem.position).Magnitude
-    print("[Farm] Vật phẩm gần nhất cách:", distToItem, "studs")
     
+    -- Đang ở tường -> teleport đến vật phẩm
     if IsAtWall then
-        print("[Farm] Đang ở tường, teleport đến vật phẩm...")
         SendNotification("❗ Đã thấy vật phẩm", "📌 Đang tiến hành đến vật phẩm...", 2)
         TeleportToItem(nearestItem.position)
         FarmCooldown = tick()
         return
     end
     
-    if distToItem < 15 then
-        print("[Farm] Đã đến gần vật phẩm, đang nhặt...")
+    -- Đang ở gần vật phẩm -> nhặt
+    if distToItem < 20 then
+        -- THỬ NHẶT LẦN 1
         local collected = CollectItem(nearestItem)
-        if collected then
-            TeleportToWall()
-            SendNotification("📍 Về tường", "🔄 Đã teleport về tường thành công!", 2)
-        else
-            print("[Farm] Nhặt thất bại, thử lại...")
-            TeleportToItem(nearestItem.position)
-            wait(0.2)
-            CollectItem(nearestItem)
-            TeleportToWall()
+        
+        -- Nếu chưa nhặt được, thử lại (tự động teleport lại)
+        if not collected then
+            print("[Farm] Nhặt thất bại, đang thử lại...")
+            RetryCollectItem(nearestItem)
         end
+        
+        -- Về tường
+        TeleportToWall()
+        SendNotification("📍 Về tường", "🔄 Đã teleport về tường!", 2)
         FarmCooldown = tick()
         return
     end
     
-    print("[Farm] Teleport đến vật phẩm...")
+    -- Chưa đến gần -> teleport tiếp
     TeleportToItem(nearestItem.position)
     FarmCooldown = tick()
 end
@@ -374,40 +428,32 @@ end
 -- =============================================
 FarmTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
-    Description = "Tự động farm Bubble (sửa tên trong code)",
+    Description = "Tự động farm vật phẩm (sửa tên trong code)",
     CurrentValue = false,
     Callback = function(Value)
-        print("[Farm] Toggle được bật/tắt:", Value)
         AutoFarm = Value
         
         if AutoFarm then
-            print("[Farm] Đang bật Auto Farm...")
             CollectedCount = 0
             IsAtWall = false
+            RetryCount = 0
             
             local activeItems = GetActiveItems()
             if #activeItems == 0 then
-                print("[Farm] Lỗi: Không có tên vật phẩm!")
                 AutoFarm = false
                 SendNotification("⚠️ Lỗi!", "Chưa có tên vật phẩm trong code!", 5)
                 return
             end
             
-            -- Cập nhật label
             local targetText = table.concat(activeItems, ", ")
             EventStatusLabel:Set("📌 Item target: " .. targetText)
-            print("[Farm] Mục tiêu:", targetText)
             
             SendNotification("⚡ Đã kích hoạt farm event", "🛡️ Tự động hóa quét toàn bộ...", 3)
             
-            -- Tạo tường
-            print("[Farm] Đang tạo tường...")
             SendNotification("❗ Đang tạo tường...", "🕚 Sẽ mất 1 khoảng thời gian để tạo xin vui lòng chờ...", 3)
             CreateSafeWall(FindSafeWallPosition())
             wait(0.5)
             
-            -- Teleport lên tường
-            print("[Farm] Đang teleport lên tường...")
             SendNotification("🛡️ Thông báo tạo tường...", "🗡️ Đang teleporting lên tường...", 2)
             TeleportToWall()
             SendNotification("✅ Teleporting thành công!", "✔️ Đã lên tường an toàn!", 2)
@@ -416,21 +462,17 @@ FarmTab:CreateToggle({
                 FarmConnection:Disconnect() 
             end
             
-            print("[Farm] Bắt đầu farm loop...")
             FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 if AutoFarm then 
                     pcall(FarmLoop) 
                 end
             end)
-            print("[Farm] Auto Farm đã bật thành công!")
         else
-            print("[Farm] Đang tắt Auto Farm...")
             if FarmConnection then 
                 FarmConnection:Disconnect() 
                 FarmConnection = nil 
             end
-            SendNotification("⏹️ Đã tắt!", "Auto Farm đã dừng lại.", 3)
-            print("[Farm] Auto Farm đã tắt!")
+            SendNotification("⏹️ Đã tắt!", "Auto Farm đã dừng lại. Tổng: " .. CollectedCount .. " vật phẩm", 3)
         end
     end
 })
@@ -563,6 +605,7 @@ end)
 FarmTab:CreateSection("📋 Information")
 FarmTab:CreateLabel("👤 Author: Nate & Ngọt")
 FarmTab:CreateLabel("📱 Compatible: Delta v2.731")
+FarmTab:CreateLabel("🎯 Tự động farm vật phẩm - Sửa tên trong code")
 
 print("========================================")
 print("[Nexus Hub] Loaded successfully!")
