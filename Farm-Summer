@@ -40,22 +40,15 @@ local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
 -- SECTION 1: THÔNG TIN FARM
 local InfoSection = FarmTab:CreateSection("📊 Farm Information")
 
-local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items in server: 0")
+local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items: 0")
 local LevelLabel = FarmTab:CreateLabel("⭐ Current Level: 0")
 local ExpLabel = FarmTab:CreateLabel("✨ Exp: 0 / 0")
 local EventStatusLabel = FarmTab:CreateLabel("⏰ Event: 🔍 Checking...")
 
--- SECTION 2: AUTO FARM EVENT
+-- SECTION 2: AUTO FARM EVENT (CÓ TOGGLE)
 local FarmEventSection = FarmTab:CreateSection("🎈 Auto Farm Event")
-local EventLog = FarmTab:CreateParagraph("📌 Waiting for Farm Event...")
 
--- SECTION 3: AUTO FARM LV
-local FarmLVSection = FarmTab:CreateSection("⭐ Auto Farm LV")
-local LVLog = FarmTab:CreateParagraph("📌 Waiting for Farm LV...")
-
--- =============================================
--- BIẾN TOÀN CỤC
--- =============================================
+-- Toggle Farm Event - ĐẢM BẢO HIỂN THỊ
 local AutoFarm = false
 local FarmConnection = nil
 local CollectedCount = 0
@@ -67,19 +60,105 @@ local SafeWall = nil
 local WallPosition = nil
 local EventActive = false
 local LastEventCheck = 0
-
--- Log variables
 local EventLogLines = {}
 local EventLogIndex = 0
-local LVLogLines = {}
-local LVLogIndex = 0
 
--- Farm LV
+-- Toggle Farm Event (HIỂN THỊ RÕ RÀNG)
+FarmTab:CreateToggle({
+    Name = "Auto Farm Event 🎈",
+    Description = "Auto detect & farm ANY event (no name/value needed)",
+    CurrentValue = false,
+    Callback = function(Value)
+        AutoFarm = Value
+        if AutoFarm then
+            if not CheckEventStatus() then
+                Rayfield:Notify({
+                    Title = "⛔ No Event!",
+                    Content = "No event detected. Cannot start.",
+                    Duration = 5,
+                    Image = 0
+                })
+                AutoFarm = false
+                return
+            end
+            
+            CollectedCount = 0
+            IsAtWall = false
+            FarmLoopCount = 0
+            EventLogLines = {}
+            EventLogIndex = 0
+            Rayfield:Notify({
+                Title = "✅ Started!",
+                Content = "Event farming started.",
+                Duration = 3,
+                Image = 0
+            })
+            
+            wait(0.2)
+            CreateSafeWall(FindSafeWallPosition())
+            TeleportToWall()
+            
+            if FarmConnection then FarmConnection:Disconnect() end
+            FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if AutoFarm then pcall(FarmLoop) end
+            end)
+        else
+            if FarmConnection then FarmConnection:Disconnect() FarmConnection = nil end
+            EventLogLines = {}
+            EventLogIndex = 0
+            Rayfield:Notify({
+                Title = "⏹️ Stopped!",
+                Content = "Total collected: " .. CollectedCount,
+                Duration = 3,
+                Image = 0
+            })
+        end
+    end
+})
+
+-- SECTION 3: AUTO FARM LV
+local FarmLVSection = FarmTab:CreateSection("⭐ Auto Farm LV")
+
+-- Toggle Farm LV
 local FarmLV = false
 local FarmLVConnection = nil
 
+FarmTab:CreateToggle({
+    Name = "Auto Farm LV ⭐",
+    Description = "Create wide wall and teleport up",
+    CurrentValue = false,
+    Callback = function(Value)
+        FarmLV = Value
+        if FarmLV then
+            CreateSafeWall(FindSafeWallPosition())
+            if SafeWall then SafeWall.Size = Vector3.new(50, 2, 50) end
+            wait(0.3)
+            TeleportToWall()
+            Rayfield:Notify({
+                Title = "⭐ Started!",
+                Content = "Farm LV started.",
+                Duration = 3,
+                Image = 0
+            })
+            
+            if FarmLVConnection then FarmLVConnection:Disconnect() end
+            FarmLVConnection = game:GetService("RunService").Stepped:Connect(function()
+                if FarmLV then pcall(FarmLVLoop) end
+            end)
+        else
+            if FarmLVConnection then FarmLVConnection:Disconnect() FarmLVConnection = nil end
+            Rayfield:Notify({
+                Title = "⏹️ Stopped!",
+                Content = "Farm LV stopped.",
+                Duration = 3,
+                Image = 0
+            })
+        end
+    end
+})
+
 -- =============================================
--- HÀM TÌM VẬT PHẨM SỰ KIỆN (KHÔNG DÙNG TÊN, KHÔNG DÙNG GIÁ TRỊ)
+-- HÀM TÌM VẬT PHẨM SỰ KIỆN
 -- =============================================
 local function FindEventItems()
     local items = {}
@@ -90,10 +169,8 @@ local function FindEventItems()
     if not rootPos then return items end
     
     for _, obj in ipairs(workspace:GetDescendants()) do
-        -- Bỏ qua object của người chơi
         if obj:IsDescendantOf(character) then continue end
         
-        -- KIỂM TRA VẬT PHẨM CÓ THỂ TƯƠNG TÁC
         local clickDetector = obj:FindFirstChild("ClickDetector")
         local proximityPrompt = obj:FindFirstChild("ProximityPrompt")
         
@@ -101,17 +178,8 @@ local function FindEventItems()
             local isEventItem = false
             local position = nil
             
-            -- =============================================
-            -- CÁCH PHÁT HIỆN: DỰA TRÊN CƠ CHẾ TƯƠNG TÁC
-            -- KHÔNG DÙNG TÊN, KHÔNG DÙNG GIÁ TRỊ
-            -- =============================================
-            
-            -- CÁCH 1: KIỂM TRA ATTRIBUTE (KHÔNG DÙNG GIÁ TRỊ CỤ THỂ)
-            local attrs = {
-                "CurrencyType", "EventCurrency", "Collectible", 
-                "Currency", "Reward", "Value", "Points",
-                "Collectable", "Pickup", "Item", "EventItem"
-            }
+            -- Kiểm tra attribute (không dùng tên)
+            local attrs = {"CurrencyType", "EventCurrency", "Collectible", "Currency", "Reward", "Value", "Points", "Collectable", "Pickup", "Item", "EventItem"}
             for _, attr in ipairs(attrs) do
                 if obj:GetAttribute(attr) ~= nil then
                     isEventItem = true
@@ -119,61 +187,25 @@ local function FindEventItems()
                 end
             end
             
-            -- CÁCH 2: KIỂM TRA TÊN CỦA CLICKDETECTOR (KHÔNG DÙNG TÊN OBJECT)
+            -- Kiểm tra tên của ClickDetector
             if not isEventItem and clickDetector then
                 local detName = clickDetector.Name:lower()
-                if detName:find("collect") or detName:find("pickup") or 
-                   detName:find("event") or detName:find("currency") or
-                   detName:find("item") then
+                if detName:find("collect") or detName:find("pickup") or detName:find("event") or detName:find("currency") or detName:find("item") then
                     isEventItem = true
                 end
             end
             
-            -- CÁCH 3: KIỂM TRA TÊN CỦA PROXIMITYPROMPT
-            if not isEventItem and proximityPrompt then
-                local promptName = proximityPrompt.Name:lower()
-                if promptName:find("collect") or promptName:find("pickup") or 
-                   promptName:find("event") or promptName:find("currency") or
-                   promptName:find("item") then
-                    isEventItem = true
-                end
-            end
-            
-            -- CÁCH 4: KIỂM TRA FOLDER CHỨA (KHÔNG DÙNG TÊN OBJECT)
+            -- Kiểm tra folder chứa
             if not isEventItem then
                 local parent = obj.Parent
                 if parent then
                     local parentName = parent.Name:lower()
-                    if parentName:find("collect") or parentName:find("event") or 
-                       parentName:find("currency") or parentName:find("item") or
-                       parentName:find("pickup") then
+                    if parentName:find("collect") or parentName:find("event") or parentName:find("currency") or parentName:find("item") or parentName:find("pickup") then
                         isEventItem = true
                     end
                 end
             end
             
-            -- CÁCH 5: KIỂM TRA CLASSNAME (NẾU LÀ MODEL HOẶC PART CÓ THỂ TƯƠNG TÁC)
-            if not isEventItem then
-                if obj:IsA("Model") or obj:IsA("Part") or obj:IsA("MeshPart") then
-                    -- Kiểm tra có script xử lý tương tác không
-                    local hasScript = false
-                    for _, child in ipairs(obj:GetChildren()) do
-                        if child:IsA("Script") or child:IsA("LocalScript") then
-                            local src = child.Source or ""
-                            if src:find("Click") or src:find("Prompt") or 
-                               src:find("Collect") or src:find("Pickup") then
-                                hasScript = true
-                                break
-                            end
-                        end
-                    end
-                    if hasScript then
-                        isEventItem = true
-                    end
-                end
-            end
-            
-            -- NẾU LÀ VẬT PHẨM EVENT, LẤY VỊ TRÍ
             if isEventItem then
                 if obj:IsA("BasePart") then
                     position = obj.Position
@@ -229,9 +261,11 @@ local function CheckEventStatus()
         if count > 0 then
             EventActive = true
             EventStatusLabel:Set("⏰ Event: ✅ ACTIVE (" .. count .. " items)")
+            CurrencyLabel:Set("🎯 Event Items: " .. count)
         else
             EventActive = false
             EventStatusLabel:Set("⏰ Event: ❌ NONE")
+            CurrencyLabel:Set("🎯 Event Items: 0")
         end
         
         return EventActive
@@ -246,7 +280,7 @@ local function UpdateLabels()
     pcall(function()
         local items = FindEventItems()
         TotalItems = #items
-        CurrencyLabel:Set("🎯 Event Items in server: " .. #items)
+        CurrencyLabel:Set("🎯 Event Items: " .. #items)
         
         local LocalPlayer = game.Players.LocalPlayer
         local stats = LocalPlayer:FindFirstChild("leaderstats")
@@ -274,31 +308,6 @@ end
 
 UpdateLabels()
 CheckEventStatus()
-
--- =============================================
--- LOG FUNCTIONS
--- =============================================
-local function UpdateEventLog(message)
-    EventLogIndex = EventLogIndex + 1
-    table.insert(EventLogLines, "[" .. os.date("%H:%M:%S") .. "] " .. message)
-    if #EventLogLines > 5 then
-        table.remove(EventLogLines, 1)
-    end
-    if EventLog then
-        EventLog:Set(table.concat(EventLogLines, "\n"))
-    end
-end
-
-local function UpdateLVLog(message)
-    LVLogIndex = LVLogIndex + 1
-    table.insert(LVLogLines, "[" .. os.date("%H:%M:%S") .. "] " .. message)
-    if #LVLogLines > 5 then
-        table.remove(LVLogLines, 1)
-    end
-    if LVLog then
-        LVLog:Set(table.concat(LVLogLines, "\n"))
-    end
-end
 
 -- =============================================
 -- TƯỜNG AN TOÀN
@@ -368,8 +377,7 @@ local function CollectItem(item)
     
     if success then
         CollectedCount = CollectedCount + 1
-        UpdateEventLog("✅ Collected #" .. CollectedCount)
-        CurrencyLabel:Set("🎯 Event Items in server: " .. TotalItems)
+        CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
         return true
     end
     return false
@@ -383,7 +391,6 @@ local function FarmLoop()
     
     if not CheckEventStatus() then
         if AutoFarm then
-            UpdateEventLog("❌ NO EVENT! Stopped.")
             AutoFarm = false
             if FarmConnection then
                 FarmConnection:Disconnect()
@@ -410,7 +417,6 @@ local function FarmLoop()
     if not root then return end
     
     if char:GetAttribute("Downed") then
-        UpdateEventLog("⚠️ Downed")
         FarmCooldown = tick()
         return
     end
@@ -421,7 +427,6 @@ local function FarmLoop()
         if stateText:lower():find("voting") or stateText:lower():find("paused") then
             if not IsAtWall then
                 TeleportToWall()
-                UpdateEventLog("⏸️ Paused")
             end
             FarmCooldown = tick()
             return
@@ -434,7 +439,6 @@ local function FarmLoop()
     if TotalItems == 0 then
         if not IsAtWall then
             TeleportToWall()
-            UpdateEventLog("🔍 No items")
         end
         FarmCooldown = tick()
         return
@@ -451,7 +455,6 @@ local function FarmLoop()
     local distToItem = (currentPos - nearestItem.position).Magnitude
     
     if IsAtWall then
-        UpdateEventLog("🎯 Found item! Teleporting...")
         TeleportToItem(nearestItem.position)
         FarmCooldown = tick()
         return
@@ -461,10 +464,8 @@ local function FarmLoop()
         if distToItem < 15 then
             CollectItem(nearestItem)
             TeleportToWall()
-            UpdateEventLog("📍 Back to wall")
             FarmCooldown = tick()
         else
-            UpdateEventLog("🎯 Teleporting...")
             TeleportToItem(nearestItem.position)
             FarmCooldown = tick()
         end
@@ -473,105 +474,18 @@ local function FarmLoop()
 end
 
 -- =============================================
--- TOGGLE FARM EVENT
--- =============================================
-FarmTab:CreateToggle({
-    Name = "Auto Farm Event 🎈",
-    Description = "Auto detect & farm ANY event (no name/value needed)",
-    CurrentValue = false,
-    Callback = function(Value)
-        AutoFarm = Value
-        if AutoFarm then
-            if not CheckEventStatus() then
-                Rayfield:Notify({
-                    Title = "⛔ No Event!",
-                    Content = "No event detected. Cannot start.",
-                    Duration = 5,
-                    Image = 0
-                })
-                UpdateEventLog("❌ No event!")
-                AutoFarm = false
-                return
-            end
-            
-            CollectedCount = 0
-            IsAtWall = false
-            FarmLoopCount = 0
-            EventLogLines = {}
-            EventLogIndex = 0
-            UpdateEventLog("🚀 Starting Auto Farm...")
-            UpdateEventLog("📍 On wall, waiting for items...")
-            Rayfield:Notify({
-                Title = "✅ Started!",
-                Content = "Event farming started.",
-                Duration = 3,
-                Image = 0
-            })
-            
-            wait(0.2)
-            CreateSafeWall(FindSafeWallPosition())
-            TeleportToWall()
-            
-            if FarmConnection then FarmConnection:Disconnect() end
-            FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                if AutoFarm then pcall(FarmLoop) end
-            end)
-        else
-            if FarmConnection then FarmConnection:Disconnect() FarmConnection = nil end
-            EventLogLines = {}
-            EventLogIndex = 0
-            UpdateEventLog("⏹️ Stopped! Total: " .. CollectedCount)
-            UpdateEventLog("🔴 Disabled")
-        end
-    end
-})
-
--- =============================================
--- TOGGLE FARM LV
+-- FARM LV LOOP
 -- =============================================
 local function FarmLVLoop()
     if not FarmLV then return end
     if not SafeWall then
         CreateSafeWall(FindSafeWallPosition())
-        UpdateLVLog("🔄 Creating wall...")
     end
     if SafeWall and SafeWall.Size.Magnitude < 50 then
         SafeWall.Size = Vector3.new(50, 2, 50)
-        UpdateLVLog("📏 Wall size 50x50")
     end
     TeleportToWall()
-    UpdateLVLog("📍 On wall")
 end
-
-FarmTab:CreateToggle({
-    Name = "Auto Farm LV ⭐",
-    Description = "Create wide wall and teleport up",
-    CurrentValue = false,
-    Callback = function(Value)
-        FarmLV = Value
-        if FarmLV then
-            LVLogLines = {}
-            LVLogIndex = 0
-            UpdateLVLog("⭐ Starting Farm LV...")
-            UpdateLVLog("📍 On wall, farming LV...")
-            CreateSafeWall(FindSafeWallPosition())
-            if SafeWall then SafeWall.Size = Vector3.new(50, 2, 50) end
-            wait(0.3)
-            TeleportToWall()
-            
-            if FarmLVConnection then FarmLVConnection:Disconnect() end
-            FarmLVConnection = game:GetService("RunService").Stepped:Connect(function()
-                if FarmLV then pcall(FarmLVLoop) end
-            end)
-        else
-            if FarmLVConnection then FarmLVConnection:Disconnect() FarmLVConnection = nil end
-            LVLogLines = {}
-            LVLogIndex = 0
-            UpdateLVLog("⏹️ Stopped!")
-            UpdateLVLog("🔴 Disabled")
-        end
-    end
-})
 
 -- =============================================
 -- TAB 2: SERVER MODEL
@@ -646,9 +560,7 @@ print("========================================")
 print("[Nexus Hub] Loaded successfully!")
 print("[Nexus Hub] Author: Nate & Ngọt")
 print("[Nexus Hub] Auto detect ANY event - No name/value needed")
-print("[Nexus Hub] Works even if admin changes item names/values")
 print("========================================")
 
--- Kiểm tra event ngay khi chạy
 wait(1)
 CheckEventStatus()
