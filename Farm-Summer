@@ -40,9 +40,10 @@ local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
 -- SECTION 1: THÔNG TIN FARM
 local InfoSection = FarmTab:CreateSection("📊 Farm Information")
 
-local BubbleLabel = FarmTab:CreateLabel("🎈 Event Items in server: 0")
+local BubbleLabel = FarmTab:CreateLabel("🎯 Event Currency in server: 0")
 local LevelLabel = FarmTab:CreateLabel("⭐ Current Level: 0")
 local ExpLabel = FarmTab:CreateLabel("✨ Exp: 0 / 0")
+local EventTimeLabel = FarmTab:CreateLabel("⏰ Event time remaining: Checking...")
 
 -- SECTION 2: FARM EVENT
 local FarmEventSection = FarmTab:CreateSection("🎈 Auto Farm Event")
@@ -67,48 +68,15 @@ local FarmLV = false
 local FarmLVConnection = nil
 local LVLogLines = {}
 local LVLogIndex = 0
+local EventActive = true
+local LastEventCheck = 0
+local IsCollecting = false
+local LastCollectTime = 0
 
 -- =============================================
--- HÀM CẬP NHẬT LABEL
+-- HÀM PHÁT HIỆN VẬT PHẨM QUY ĐỔI SỰ KIỆN (KHÔNG DÙNG TÊN)
 -- =============================================
-local function UpdateLabels()
-    pcall(function()
-        local count = 0
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") or obj:IsA("Model") then
-                if obj:FindFirstChild("ClickDetector") or obj:FindFirstChild("ProximityPrompt") then
-                    count = count + 1
-                end
-            end
-        end
-        TotalItems = count
-        BubbleLabel:Set("🎈 Event Items in server: " .. count)
-        
-        local LocalPlayer = game.Players.LocalPlayer
-        local stats = LocalPlayer:FindFirstChild("leaderstats")
-        if stats then
-            local level = stats:FindFirstChild("Level")
-            local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
-            local expToNext = stats:FindFirstChild("ExpToNext") or stats:FindFirstChild("ExperienceToNext")
-            
-            if level then
-                LevelLabel:Set("⭐ Current Level: " .. level.Value)
-            end
-            if exp and expToNext then
-                ExpLabel:Set("✨ Exp: " .. exp.Value .. " / " .. expToNext.Value)
-            elseif exp then
-                ExpLabel:Set("✨ Exp: " .. exp.Value)
-            end
-        end
-    end)
-end
-
-UpdateLabels()
-
--- =============================================
--- HÀM TÌM VẬT PHẨM SỰ KIỆN (KHÔNG CẦN TÊN)
--- =============================================
-local function FindEventItems()
+local function FindEventCurrency()
     local items = {}
     local LocalPlayer = game.Players.LocalPlayer
     local character = LocalPlayer.Character
@@ -116,39 +84,51 @@ local function FindEventItems()
     local rootPos = character:FindFirstChild("HumanoidRootPart")
     if not rootPos then return items end
     
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        local isEventItem = false
+    local allObjects = workspace:GetDescendants()
+    
+    for _, obj in ipairs(allObjects) do
+        local isCurrency = false
         local position = nil
         
-        -- CÁCH 1: ClickDetector
-        if obj:FindFirstChild("ClickDetector") then
+        -- CÁCH 1: PHÁT HIỆN QUA CƠ CHẾ TƯƠNG TÁC
+        local clickDetector = obj:FindFirstChild("ClickDetector")
+        local proximityPrompt = obj:FindFirstChild("ProximityPrompt")
+        
+        if clickDetector or proximityPrompt then
             if not obj:IsDescendantOf(character) then
-                isEventItem = true
-            end
-        end
-        
-        -- CÁCH 2: ProximityPrompt
-        if not isEventItem then
-            if obj:FindFirstChild("ProximityPrompt") then
-                if not obj:IsDescendantOf(character) then
-                    isEventItem = true
+                -- CÁCH 2: KIỂM TRA ATTRIBUTE
+                local attrs = {
+                    "CurrencyType", "EventCurrency", "Collectible", 
+                    "Currency", "Reward", "Value", "Points",
+                    "Collectable", "Pickup", "Item"
+                }
+                
+                for _, attr in ipairs(attrs) do
+                    if obj:GetAttribute(attr) then
+                        isCurrency = true
+                        break
+                    end
+                end
+                
+                -- CÁCH 3: KIỂM TRA GIÁ TRỊ TRONG CLICKDETECTOR
+                if not isCurrency and clickDetector then
+                    local value = clickDetector:GetAttribute("Value")
+                    if value and value > 0 then
+                        isCurrency = true
+                    end
+                end
+                
+                -- CÁCH 4: KIỂM TRA GIÁ TRỊ TRONG PROXIMITYPROMPT
+                if not isCurrency and proximityPrompt then
+                    local value = proximityPrompt:GetAttribute("Value")
+                    if value and value > 0 then
+                        isCurrency = true
+                    end
                 end
             end
         end
         
-        -- CÁCH 3: Attribute
-        if not isEventItem then
-            local attrs = {"Collectible", "EventItem", "Pickup", "Collectable", "Currency", "Reward", "Item"}
-            for _, attr in ipairs(attrs) do
-                if obj:GetAttribute(attr) then
-                    isEventItem = true
-                    break
-                end
-            end
-        end
-        
-        -- NẾU LÀ VẬT PHẨM EVENT -> LẤY VỊ TRÍ
-        if isEventItem then
+        if isCurrency then
             if obj:IsA("BasePart") then
                 position = obj.Position
             elseif obj:IsA("Model") then
@@ -176,7 +156,9 @@ local function FindEventItems()
                     object = obj,
                     position = position,
                     name = obj.Name,
-                    distance = (rootPos.Position - position).Magnitude
+                    distance = (rootPos.Position - position).Magnitude,
+                    clickDetector = clickDetector,
+                    proximityPrompt = proximityPrompt
                 })
             end
         end
@@ -188,6 +170,78 @@ local function FindEventItems()
     
     return items
 end
+
+-- =============================================
+-- HÀM KIỂM TRA SỰ KIỆN
+-- =============================================
+local function CheckEventStatus()
+    pcall(function()
+        local items = FindEventCurrency()
+        local hasItems = #items > 0
+        
+        local eventTime = workspace:FindFirstChild("EventTimeLeft")
+        if eventTime then
+            local timeLeft = eventTime.Value or 0
+            if timeLeft > 0 then
+                local days = math.floor(timeLeft / 86400)
+                local hours = math.floor((timeLeft % 86400) / 3600)
+                local minutes = math.floor((timeLeft % 3600) / 60)
+                EventTimeLabel:Set("⏰ Event remaining: " .. days .. "d " .. hours .. "h " .. minutes .. "m")
+                EventActive = true
+            else
+                EventTimeLabel:Set("⏰ Event has ended!")
+                EventActive = false
+            end
+        else
+            if hasItems then
+                EventTimeLabel:Set("⏰ Event is active! (" .. #items .. " items found)")
+                EventActive = true
+            else
+                EventTimeLabel:Set("⏰ No event detected. Waiting...")
+                EventActive = false
+            end
+        end
+        
+        return EventActive
+    end)
+    return EventActive
+end
+
+-- =============================================
+-- HÀM CẬP NHẬT LABEL
+-- =============================================
+local function UpdateLabels()
+    pcall(function()
+        local items = FindEventCurrency()
+        TotalItems = #items
+        BubbleLabel:Set("🎯 Event Currency in server: " .. #items)
+        
+        local LocalPlayer = game.Players.LocalPlayer
+        local stats = LocalPlayer:FindFirstChild("leaderstats")
+        if stats then
+            local level = stats:FindFirstChild("Level")
+            local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
+            local expToNext = stats:FindFirstChild("ExpToNext") or stats:FindFirstChild("ExperienceToNext")
+            
+            if level then
+                LevelLabel:Set("⭐ Current Level: " .. level.Value)
+            end
+            if exp and expToNext then
+                ExpLabel:Set("✨ Exp: " .. exp.Value .. " / " .. expToNext.Value)
+            elseif exp then
+                ExpLabel:Set("✨ Exp: " .. exp.Value)
+            end
+        end
+        
+        if tick() - LastEventCheck > 30 then
+            LastEventCheck = tick()
+            CheckEventStatus()
+        end
+    end)
+end
+
+UpdateLabels()
+CheckEventStatus()
 
 -- =============================================
 -- LOG FUNCTIONS
@@ -255,21 +309,72 @@ local function TeleportToWall()
     return true
 end
 
-local function TeleportToItem(targetPos)
+-- =============================================
+-- HÀM TELEPORT VÀ NHẶT VẬT PHẨM (FIX LỖI)
+-- =============================================
+local function TeleportAndCollect(targetPos, item)
     local char = game.Players.LocalPlayer.Character
     if not char then return false end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return false end
+    
+    -- TELEPORT TỨC THỜI
     root.CFrame = CFrame.new(targetPos)
     IsAtWall = false
+    
+    -- NHẶT VẬT PHẨM NGAY LẬP TỨC (KHÔNG CẦN TELEPORT LẠI)
+    if item then
+        pcall(function()
+            -- Thử ClickDetector
+            if item.clickDetector then
+                item.clickDetector:FireClick()
+            end
+            -- Thử ProximityPrompt
+            if item.proximityPrompt then
+                item.proximityPrompt:Fire()
+            end
+            -- Thử FireServer (nếu có)
+            local collectEvent = game:GetService("ReplicatedStorage"):FindFirstChild("CollectItem")
+            if collectEvent then
+                collectEvent:FireServer(item.object)
+            end
+        end)
+        
+        -- Tăng số lượng đã nhặt
+        CollectedCount = CollectedCount + 1
+        UpdateEventLog("✅ Collected Currency #" .. CollectedCount)
+        
+        -- Cập nhật label
+        TotalLabel:Set("🎯 Collected: " .. CollectedCount .. " currencies")
+    end
+    
     return true
 end
 
 -- =============================================
--- FARM LOOP CHÍNH
+-- FARM LOOP CHÍNH (FIX LỖI)
 -- =============================================
 local function FarmLoop()
     if not AutoFarm then return end
+    
+    if not CheckEventStatus() then
+        if AutoFarm then
+            UpdateEventLog("❌ EVENT HAS ENDED! Auto Farm stopped.")
+            UpdateEventLog("⏳ Waiting for new event...")
+            AutoFarm = false
+            if FarmConnection then
+                FarmConnection:Disconnect()
+                FarmConnection = nil
+            end
+            Rayfield:Notify({
+                Title = "⛔ Event Ended!",
+                Content = "The event has ended. Auto Farm has been stopped. Waiting for new event...",
+                Duration = 5,
+                Image = 0
+            })
+        end
+        return
+    end
     
     FarmLoopCount = FarmLoopCount + 1
     if FarmLoopCount % 3 ~= 0 then return end
@@ -300,13 +405,13 @@ local function FarmLoop()
         end
     end
     
-    local items = FindEventItems()
+    local items = FindEventCurrency()
     TotalItems = #items
     
     if TotalItems == 0 then
         if not IsAtWall then
             TeleportToWall()
-            UpdateEventLog("🔍 No event items found, waiting on wall...")
+            UpdateEventLog("🔍 No event currency found, waiting on wall...")
         end
         FarmCooldown = tick()
         return
@@ -320,34 +425,52 @@ local function FarmLoop()
         return
     end
     
+    local distToItem = (currentPos - nearestItem.position).Magnitude
+    
     if IsAtWall then
-        UpdateEventLog("🎈 Found event item! Teleporting...")
-        TeleportToItem(nearestItem.position)
+        UpdateEventLog("🎯 Found event currency! Teleporting and collecting...")
+        -- TELEPORT VÀ NHẶT LUÔN (KHÔNG CẦN TELEPORT LẠI)
+        TeleportAndCollect(nearestItem.position, nearestItem)
         FarmCooldown = tick()
         return
     end
     
     if not IsAtWall then
-        local distToItem = (currentPos - nearestItem.position).Magnitude
-        if distToItem < 10 then
+        if distToItem < 15 then
+            -- Đã ở gần -> nhặt luôn
             pcall(function()
-                local clickDetector = nearestItem.object:FindFirstChild("ClickDetector")
-                if clickDetector then clickDetector:FireClick() end
-                local proximityPrompt = nearestItem.object:FindFirstChild("ProximityPrompt")
-                if proximityPrompt then proximityPrompt:Fire() end
+                if nearestItem.clickDetector then
+                    nearestItem.clickDetector:FireClick()
+                end
+                if nearestItem.proximityPrompt then
+                    nearestItem.proximityPrompt:Fire()
+                end
                 CollectedCount = CollectedCount + 1
-                UpdateEventLog("✅ Collected Item #" .. CollectedCount .. " (" .. nearestItem.name .. ")")
+                UpdateEventLog("✅ Collected Currency #" .. CollectedCount)
             end)
+            -- Về tường
             TeleportToWall()
             UpdateEventLog("📍 Back to wall, waiting for next...")
             FarmCooldown = tick()
         else
-            UpdateEventLog("🎈 Teleporting to event item...")
-            TeleportToItem(nearestItem.position)
+            -- Teleport đến vật phẩm (sẽ nhặt ở lần loop tiếp theo)
+            UpdateEventLog("🎯 Teleporting to event currency...")
+            TeleportToCurrency(nearestItem.position)
             FarmCooldown = tick()
         end
         return
     end
+end
+
+-- Hàm TeleportToCurrency (giữ nguyên cho các trường hợp khác)
+local function TeleportToCurrency(targetPos)
+    local char = game.Players.LocalPlayer.Character
+    if not char then return false end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+    root.CFrame = CFrame.new(targetPos)
+    IsAtWall = false
+    return true
 end
 
 -- =============================================
@@ -355,22 +478,41 @@ end
 -- =============================================
 FarmTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
-    Description = "Auto detect & farm any event item (no name needed)",
+    Description = "Auto detect & farm event currency (no name needed)",
     CurrentValue = false,
     Callback = function(Value)
         AutoFarm = Value
         if AutoFarm then
+            if not CheckEventStatus() then
+                Rayfield:Notify({
+                    Title = "⛔ Event Not Active!",
+                    Content = "There is no active event right now. Auto Farm cannot start. Waiting for new event...",
+                    Duration = 5,
+                    Image = 0
+                })
+                UpdateEventLog("❌ Cannot start: No active event!")
+                UpdateEventLog("⏳ Waiting for new event...")
+                AutoFarm = false
+                return
+            end
+            
             CollectedCount = 0
             IsAtWall = false
             FarmLoopCount = 0
             EventLogLines = {}
             EventLogIndex = 0
             UpdateEventLog("🚀 Starting Auto Farm...")
+            Rayfield:Notify({
+                Title = "✅ Auto Farm Started!",
+                Content = "Event is active! Auto farming started.",
+                Duration = 3,
+                Image = 0
+            })
             
             wait(0.2)
             CreateSafeWall(FindSafeWallPosition())
             TeleportToWall()
-            UpdateEventLog("📍 On wall, waiting for event items...")
+            UpdateEventLog("📍 On wall, waiting for event currency...")
             
             if FarmConnection then FarmConnection:Disconnect() end
             FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
@@ -380,7 +522,7 @@ FarmTab:CreateToggle({
             if FarmConnection then FarmConnection:Disconnect() FarmConnection = nil end
             EventLogLines = {}
             EventLogIndex = 0
-            UpdateEventLog("⏹️ Function stopped! Total: " .. CollectedCount .. " items")
+            UpdateEventLog("⏹️ Function stopped! Total: " .. CollectedCount .. " currencies")
             UpdateEventLog("⚠️ Cannot log here because function is OFF")
             UpdateEventLog("🔴 Auto Farm is disabled")
         end
@@ -449,11 +591,87 @@ local LogLVSection = LogTab:CreateSection("📋 Log Farm LV")
 LVLog = LogTab:CreateParagraph("📌 Waiting for Farm LV to start...")
 
 -- =============================================
+-- TAB 3: SERVER MODEL
+-- =============================================
+local ServerTab = Window:CreateTab("Server Model", 4483362458)
+
+local ServerInfoSection = ServerTab:CreateSection("📊 Server Information")
+
+local PlayerCountLabel = ServerTab:CreateLabel("👤 Players in server: 0")
+local MaxPlayersLabel = ServerTab:CreateLabel("📊 Max players: 0")
+local ServerIDLabel = ServerTab:CreateLabel("🆔 Server ID: Loading...")
+local ServerInfoParagraph = ServerTab:CreateParagraph("📋 Server Information:\nWaiting to load...")
+
+local function UpdateServerInfo()
+    pcall(function()
+        local LocalPlayer = game.Players.LocalPlayer
+        local players = game.Players:GetPlayers()
+        local playerCount = #players
+        local maxPlayers = game.Players.MaxPlayers
+        
+        PlayerCountLabel:Set("👤 Players in server: " .. playerCount)
+        MaxPlayersLabel:Set("📊 Max players: " .. maxPlayers)
+        
+        local serverId = game.JobId or "Unknown"
+        ServerIDLabel:Set("🆔 Server ID: " .. serverId)
+        
+        local currentTime = os.date("%H:%M:%S")
+        local currentDate = os.date("%d/%m/%Y")
+        
+        local mapName = "Unknown"
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and obj.Name:lower():find("map") then
+                mapName = obj.Name
+                break
+            end
+        end
+        if mapName == "Unknown" then
+            for _, obj in ipairs(workspace:GetChildren()) do
+                if obj:IsA("Model") and obj.Name ~= "Terrain" then
+                    mapName = obj.Name
+                    break
+                end
+            end
+        end
+        
+        local info = "📋 SERVER INFORMATION\n"
+        info = info .. "═══════════════════════════\n"
+        info = info .. "🆔 Server ID: " .. serverId .. "\n"
+        info = info .. "📍 Map: " .. mapName .. "\n"
+        info = info .. "👤 Players: " .. playerCount .. " / " .. maxPlayers .. "\n"
+        info = info .. "🟢 Status: Active\n"
+        info = info .. "⏰ Time: " .. currentTime .. "\n"
+        info = info .. "📅 Date: " .. currentDate .. "\n"
+        info = info .. "═══════════════════════════\n"
+        
+        info = info .. "📋 Player List:\n"
+        local playerNames = {}
+        for _, player in ipairs(players) do
+            table.insert(playerNames, player.Name)
+        end
+        table.sort(playerNames)
+        for i, name in ipairs(playerNames) do
+            if i <= 10 then
+                info = info .. "   👤 " .. name .. "\n"
+            else
+                info = info .. "   ... and " .. (#playerNames - 10) .. " more\n"
+                break
+            end
+        end
+        
+        ServerInfoParagraph:Set(info)
+    end)
+end
+
+UpdateServerInfo()
+
+-- =============================================
 -- CẬP NHẬT TỰ ĐỘNG
 -- =============================================
 game:GetService("RunService").Heartbeat:Connect(function()
     pcall(function()
         UpdateLabels()
+        UpdateServerInfo()
         
         if EventLog and #EventLogLines > 0 then
             EventLog:Set(table.concat(EventLogLines, "\n"))
@@ -471,10 +689,12 @@ end)
 FarmTab:CreateSection("📋 Information")
 FarmTab:CreateLabel("👤 Author: Nate & Ngọt")
 FarmTab:CreateLabel("📱 Compatible: Delta v2.731")
-FarmTab:CreateLabel("🎯 Auto detect any event item (no name needed)")
+FarmTab:CreateLabel("🎯 Auto detect event currency - No name needed")
+FarmTab:CreateLabel("⏰ Auto detects when event ends")
+FarmTab:CreateLabel("🎭 Can use emote while farming")
 
 print("========================================")
 print("[Nexus Hub] Loaded successfully!")
 print("[Nexus Hub] Author: Nate & Ngọt")
-print("[Nexus Hub] Auto detect event items - no name needed")
+print("[Nexus Hub] Auto detect - No name needed")
 print("========================================")
