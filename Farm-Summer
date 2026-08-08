@@ -43,9 +43,78 @@ local InfoSection = FarmTab:CreateSection("📊 Farm Information")
 local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items: 0")
 local LevelLabel = FarmTab:CreateLabel("⭐ Current Level: 0")
 local ExpLabel = FarmTab:CreateLabel("✨ Exp: 0 / 0")
-local EventStatusLabel = FarmTab:CreateLabel("⏰ Event: 🔍 Checking...")
+local EventStatusLabel = FarmTab:CreateLabel("📌 Item target: Bubble")
 
--- SECTION 2: AUTO FARM EVENT
+-- SECTION 2: NHẬP TÊN VẬT PHẨM (6 Ô)
+local NameSection = FarmTab:CreateSection("📝 Enter Item Names")
+
+-- Ô 1: Bubble
+local ItemName1 = FarmTab:CreateInput({
+   Name = "🎈 Bubble",
+   Description = "✅ Main Summer 2026 currency - Đang hoạt động",
+   PlaceholderText = "Bubble",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      UpdateItemNameList()
+   end
+})
+
+-- Ô 2: Coconut
+local ItemName2 = FarmTab:CreateInput({
+   Name = "🥥 Coconut",
+   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
+   PlaceholderText = "none",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      UpdateItemNameList()
+   end
+})
+
+-- Ô 3: Gift
+local ItemName3 = FarmTab:CreateInput({
+   Name = "🎁 Gift",
+   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
+   PlaceholderText = "none",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      UpdateItemNameList()
+   end
+})
+
+-- Ô 4: Present
+local ItemName4 = FarmTab:CreateInput({
+   Name = "🎀 Present",
+   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
+   PlaceholderText = "none",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      UpdateItemNameList()
+   end
+})
+
+-- Ô 5: Candy
+local ItemName5 = FarmTab:CreateInput({
+   Name = "🍬 Candy",
+   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
+   PlaceholderText = "none",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      UpdateItemNameList()
+   end
+})
+
+-- Ô 6: Extra
+local ItemName6 = FarmTab:CreateInput({
+   Name = "⭐ Extra Item",
+   Description = "⏸️ Tạm dừng - ghi 'none' để bỏ qua",
+   PlaceholderText = "none",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      UpdateItemNameList()
+   end
+})
+
+-- SECTION 3: AUTO FARM EVENT
 local FarmEventSection = FarmTab:CreateSection("🎈 Auto Farm Event")
 
 -- =============================================
@@ -59,11 +128,53 @@ local IsAtWall = false
 local FarmCooldown = 0
 local SafeWall = nil
 local WallPosition = nil
-local EventActive = false
-local UpdateCounter = 0
+local ItemNameList = {}
+local LastNotifyTime = 0
+
+-- Cập nhật danh sách tên vật phẩm (bỏ qua 'none')
+local function UpdateItemNameList()
+    ItemNameList = {}
+    
+    local name1 = ItemName1:GetValue() or ""
+    local name2 = ItemName2:GetValue() or ""
+    local name3 = ItemName3:GetValue() or ""
+    local name4 = ItemName4:GetValue() or ""
+    local name5 = ItemName5:GetValue() or ""
+    local name6 = ItemName6:GetValue() or ""
+    
+    if name1 ~= "" and name1:lower() ~= "none" then table.insert(ItemNameList, name1) end
+    if name2 ~= "" and name2:lower() ~= "none" then table.insert(ItemNameList, name2) end
+    if name3 ~= "" and name3:lower() ~= "none" then table.insert(ItemNameList, name3) end
+    if name4 ~= "" and name4:lower() ~= "none" then table.insert(ItemNameList, name4) end
+    if name5 ~= "" and name5:lower() ~= "none" then table.insert(ItemNameList, name5) end
+    if name6 ~= "" and name6:lower() ~= "none" then table.insert(ItemNameList, name6) end
+    
+    if #ItemNameList > 0 then
+        EventStatusLabel:Set("📌 Item target: " .. table.concat(ItemNameList, ", "))
+    else
+        EventStatusLabel:Set("📌 Item target: None")
+    end
+end
 
 -- =============================================
--- HÀM TÌM VẬT PHẨM SỰ KIỆN (CHỈ CHẠY KHI CẦN)
+-- HÀM GỬI THÔNG BÁO (KHÔNG SPAM)
+-- =============================================
+local function SendNotification(title, content, duration)
+    duration = duration or 3
+    if tick() - LastNotifyTime < 0.5 then return end
+    LastNotifyTime = tick()
+    pcall(function()
+        Rayfield:Notify({
+            Title = title,
+            Content = content,
+            Duration = duration,
+            Image = 0
+        })
+    end)
+end
+
+-- =============================================
+-- HÀM TÌM VẬT PHẨM THEO TÊN
 -- =============================================
 local function FindEventItems()
     local items = {}
@@ -73,13 +184,24 @@ local function FindEventItems()
     local rootPos = character:FindFirstChild("HumanoidRootPart")
     if not rootPos then return items end
     
+    if #ItemNameList == 0 then
+        return items
+    end
+    
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsDescendantOf(character) then continue end
         
-        local clickDetector = obj:FindFirstChild("ClickDetector")
-        local proximityPrompt = obj:FindFirstChild("ProximityPrompt")
+        local objName = obj.Name or ""
+        local isMatch = false
         
-        if clickDetector or proximityPrompt then
+        for _, itemName in ipairs(ItemNameList) do
+            if objName:lower():find(itemName:lower()) then
+                isMatch = true
+                break
+            end
+        end
+        
+        if isMatch then
             local position = nil
             
             if obj:IsA("BasePart") then
@@ -105,12 +227,16 @@ local function FindEventItems()
             end
             
             if position then
+                local clickDetector = obj:FindFirstChild("ClickDetector")
+                local proximityPrompt = obj:FindFirstChild("ProximityPrompt")
+                
                 table.insert(items, {
                     object = obj,
                     position = position,
                     distance = (rootPos.Position - position).Magnitude,
                     clickDetector = clickDetector,
-                    proximityPrompt = proximityPrompt
+                    proximityPrompt = proximityPrompt,
+                    name = objName
                 })
             end
         end
@@ -122,49 +248,6 @@ local function FindEventItems()
     
     return items
 end
-
--- =============================================
--- HÀM CẬP NHẬT LABEL (GIẢM TẦN SUẤT ĐỂ GIẢM LAG)
--- =============================================
-local function UpdateLabels()
-    UpdateCounter = UpdateCounter + 1
-    if UpdateCounter % 2 ~= 0 then return end -- Chạy mỗi 2 lần heartbeat
-    
-    pcall(function()
-        local items = FindEventItems()
-        TotalItems = #items
-        CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
-        
-        local LocalPlayer = game.Players.LocalPlayer
-        local stats = LocalPlayer:FindFirstChild("leaderstats")
-        if stats then
-            local level = stats:FindFirstChild("Level")
-            local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
-            local expToNext = stats:FindFirstChild("ExpToNext") or stats:FindFirstChild("ExperienceToNext")
-            
-            if level then
-                LevelLabel:Set("⭐ Current Level: " .. level.Value)
-            end
-            
-            if exp and expToNext then
-                ExpLabel:Set("✨ Exp: " .. exp.Value .. " / " .. expToNext.Value)
-            elseif exp then
-                ExpLabel:Set("✨ Exp: " .. exp.Value)
-            end
-        end
-        
-        if TotalItems > 0 then
-            EventActive = true
-            EventStatusLabel:Set("⏰ Event: ✅ ACTIVE (" .. TotalItems .. " items)")
-        else
-            EventActive = false
-            EventStatusLabel:Set("⏰ Event: ❌ NONE")
-        end
-    end)
-end
-
--- Gọi lần đầu
-UpdateLabels()
 
 -- =============================================
 -- TƯỜNG AN TOÀN
@@ -234,13 +317,38 @@ local function CollectItem(item)
     
     if success then
         CollectedCount = CollectedCount + 1
+        SendNotification("✔️ Nhận Thành Công!", "🔎 Giá trị vật phẩm: 1", 3)
+        SendNotification("🔔 Thông báo đã làm!", "🔎 Số lần làm xong: " .. CollectedCount, 3)
         return true
     end
     return false
 end
 
 -- =============================================
--- FARM LOOP (SỬA LỖI)
+-- KIỂM TRA TẤT CẢ TÊN VẬT PHẨM CÓ PHẢI NONE KHÔNG
+-- =============================================
+local function IsAllItemsNone()
+    local name1 = ItemName1:GetValue() or ""
+    local name2 = ItemName2:GetValue() or ""
+    local name3 = ItemName3:GetValue() or ""
+    local name4 = ItemName4:GetValue() or ""
+    local name5 = ItemName5:GetValue() or ""
+    local name6 = ItemName6:GetValue() or ""
+    
+    local allNone = true
+    
+    if name1 ~= "" and name1:lower() ~= "none" then allNone = false end
+    if name2 ~= "" and name2:lower() ~= "none" then allNone = false end
+    if name3 ~= "" and name3:lower() ~= "none" then allNone = false end
+    if name4 ~= "" and name4:lower() ~= "none" then allNone = false end
+    if name5 ~= "" and name5:lower() ~= "none" then allNone = false end
+    if name6 ~= "" and name6:lower() ~= "none" then allNone = false end
+    
+    return allNone
+end
+
+-- =============================================
+-- FARM LOOP
 -- =============================================
 local function FarmLoop()
     if not AutoFarm then return end
@@ -257,11 +365,12 @@ local function FarmLoop()
         return
     end
     
-    -- Tìm vật phẩm
+    -- Quét tìm vật phẩm
+    SendNotification("⚡ Quét Server", "⚙️ Đang quét toàn diện server", 2)
     local items = FindEventItems()
     TotalItems = #items
+    CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
     
-    -- Không có vật phẩm -> về tường
     if TotalItems == 0 then
         if not IsAtWall then
             TeleportToWall()
@@ -282,6 +391,7 @@ local function FarmLoop()
     
     -- Đang ở tường -> teleport đến vật phẩm
     if IsAtWall then
+        SendNotification("❗ Đã thấy vật phẩm", "📌 Đang tiến hành đến vật phẩm...", 2)
         TeleportToItem(nearestItem.position)
         FarmCooldown = tick()
         return
@@ -289,8 +399,17 @@ local function FarmLoop()
     
     -- Đang ở gần vật phẩm -> nhặt và về tường
     if distToItem < 15 then
-        CollectItem(nearestItem)
-        TeleportToWall()
+        local collected = CollectItem(nearestItem)
+        if collected then
+            TeleportToWall()
+            SendNotification("📍 Về tường", "🔄 Đã teleport về tường thành công!", 2)
+        else
+            -- Nếu chưa nhặt được -> thử teleport lại
+            TeleportToItem(nearestItem.position)
+            wait(0.2)
+            CollectItem(nearestItem)
+            TeleportToWall()
+        end
         FarmCooldown = tick()
         return
     end
@@ -305,7 +424,7 @@ end
 -- =============================================
 FarmTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
-    Description = "Tự động farm event (không cần tên vật phẩm)",
+    Description = "Farm items by name (enter names above)",
     CurrentValue = false,
     Callback = function(Value)
         AutoFarm = Value
@@ -314,10 +433,31 @@ FarmTab:CreateToggle({
             CollectedCount = 0
             IsAtWall = false
             
-            -- Tạo tường và teleport lên
+            UpdateItemNameList()
+            
+            -- KIỂM TRA TẤT CẢ TÊN CÓ PHẢI NONE KHÔNG
+            if IsAllItemsNone() then
+                AutoFarm = false
+                SendNotification("🔔 Từ chối farm", "❗ Xin chào bạn gặp phải từ chối farm nghĩa là đang update hoặc giá trị của vật phẩm chưa nhìn thấy...", 5)
+                return
+            end
+            
+            if #ItemNameList == 0 then
+                AutoFarm = false
+                SendNotification("⚠️ Lỗi!", "Vui lòng nhập tên vật phẩm ở trên", 5)
+                return
+            end
+            
+            SendNotification("⚡ Đã kích hoạt farm event", "🛡️ Tự động hóa quét toàn bộ...", 3)
+            
+            -- Tạo tường
+            SendNotification("❗ Đang tạo tường...", "🕚 Sẽ mất 1 khoảng thời gian để tạo xin vui lòng chờ...", 3)
             CreateSafeWall(FindSafeWallPosition())
-            wait(0.3)
+            wait(0.5)
+            
+            SendNotification("🛡️ Thông báo tạo tường...", "🗡️ Đang teleporting lên tường...", 2)
             TeleportToWall()
+            SendNotification("✅ Teleporting thành công!", "✔️ Đã lên tường an toàn!", 2)
             
             if FarmConnection then 
                 FarmConnection:Disconnect() 
@@ -333,6 +473,7 @@ FarmTab:CreateToggle({
                 FarmConnection:Disconnect() 
                 FarmConnection = nil 
             end
+            SendNotification("⏹️ Đã tắt!", "Auto Farm đã dừng lại.", 3)
         end
     end
 })
@@ -354,7 +495,7 @@ end
 
 FarmTab:CreateToggle({
     Name = "Auto Farm LV ⭐",
-    Description = "Tạo tường rộng và teleport lên để farm LV",
+    Description = "Create wide wall and teleport up to farm LV",
     CurrentValue = false,
     Callback = function(Value)
         FarmLV = Value
@@ -424,11 +565,37 @@ end
 UpdateServerInfo()
 
 -- =============================================
--- CẬP NHẬT TỰ ĐỘNG (GIẢM TẦN SUẤT)
+-- CẬP NHẬP TỰ ĐỘNG
 -- =============================================
+local UpdateCounter = 0
+
 game:GetService("RunService").Heartbeat:Connect(function()
+    UpdateCounter = UpdateCounter + 1
+    if UpdateCounter % 2 ~= 0 then return end
+    
     pcall(function()
-        UpdateLabels()
+        local items = FindEventItems()
+        TotalItems = #items
+        CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
+        
+        local LocalPlayer = game.Players.LocalPlayer
+        local stats = LocalPlayer:FindFirstChild("leaderstats")
+        if stats then
+            local level = stats:FindFirstChild("Level")
+            local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
+            local expToNext = stats:FindFirstChild("ExpToNext") or stats:FindFirstChild("ExperienceToNext")
+            
+            if level then
+                LevelLabel:Set("⭐ Current Level: " .. level.Value)
+            end
+            
+            if exp and expToNext then
+                ExpLabel:Set("✨ Exp: " .. exp.Value .. " / " .. expToNext.Value)
+            elseif exp then
+                ExpLabel:Set("✨ Exp: " .. exp.Value)
+            end
+        end
+        
         UpdateServerInfo()
     end)
 end)
@@ -439,6 +606,7 @@ end)
 FarmTab:CreateSection("📋 Information")
 FarmTab:CreateLabel("👤 Author: Nate & Ngọt")
 FarmTab:CreateLabel("📱 Compatible: Delta v2.731")
+FarmTab:CreateLabel("📝 Enter item names above (type 'none' to skip)")
 
 print("========================================")
 print("[Nexus Hub] Loaded successfully!")
@@ -446,4 +614,4 @@ print("[Nexus Hub] Author: Nate & Ngọt")
 print("========================================")
 
 wait(1)
-UpdateLabels()
+UpdateItemNameList()
