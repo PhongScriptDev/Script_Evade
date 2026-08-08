@@ -40,15 +40,18 @@ local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
 -- SECTION 1: THÔNG TIN FARM
 local InfoSection = FarmTab:CreateSection("📊 Farm Information")
 
+-- Tạo label (sẽ cập nhật sau)
 local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items: 0")
 local LevelLabel = FarmTab:CreateLabel("⭐ Current Level: 0")
 local ExpLabel = FarmTab:CreateLabel("✨ Exp: 0 / 0")
 local EventStatusLabel = FarmTab:CreateLabel("⏰ Event: 🔍 Checking...")
 
--- SECTION 2: AUTO FARM EVENT (CÓ TOGGLE)
+-- SECTION 2: AUTO FARM EVENT
 local FarmEventSection = FarmTab:CreateSection("🎈 Auto Farm Event")
 
--- Toggle Farm Event - ĐẢM BẢO HIỂN THỊ
+-- =============================================
+-- BIẾN TOÀN CỤC
+-- =============================================
 local AutoFarm = false
 local FarmConnection = nil
 local CollectedCount = 0
@@ -60,102 +63,6 @@ local SafeWall = nil
 local WallPosition = nil
 local EventActive = false
 local LastEventCheck = 0
-local EventLogLines = {}
-local EventLogIndex = 0
-
--- Toggle Farm Event (HIỂN THỊ RÕ RÀNG)
-FarmTab:CreateToggle({
-    Name = "Auto Farm Event 🎈",
-    Description = "Auto detect & farm ANY event (no name/value needed)",
-    CurrentValue = false,
-    Callback = function(Value)
-        AutoFarm = Value
-        if AutoFarm then
-            if not CheckEventStatus() then
-                Rayfield:Notify({
-                    Title = "⛔ No Event!",
-                    Content = "No event detected. Cannot start.",
-                    Duration = 5,
-                    Image = 0
-                })
-                AutoFarm = false
-                return
-            end
-            
-            CollectedCount = 0
-            IsAtWall = false
-            FarmLoopCount = 0
-            EventLogLines = {}
-            EventLogIndex = 0
-            Rayfield:Notify({
-                Title = "✅ Started!",
-                Content = "Event farming started.",
-                Duration = 3,
-                Image = 0
-            })
-            
-            wait(0.2)
-            CreateSafeWall(FindSafeWallPosition())
-            TeleportToWall()
-            
-            if FarmConnection then FarmConnection:Disconnect() end
-            FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                if AutoFarm then pcall(FarmLoop) end
-            end)
-        else
-            if FarmConnection then FarmConnection:Disconnect() FarmConnection = nil end
-            EventLogLines = {}
-            EventLogIndex = 0
-            Rayfield:Notify({
-                Title = "⏹️ Stopped!",
-                Content = "Total collected: " .. CollectedCount,
-                Duration = 3,
-                Image = 0
-            })
-        end
-    end
-})
-
--- SECTION 3: AUTO FARM LV
-local FarmLVSection = FarmTab:CreateSection("⭐ Auto Farm LV")
-
--- Toggle Farm LV
-local FarmLV = false
-local FarmLVConnection = nil
-
-FarmTab:CreateToggle({
-    Name = "Auto Farm LV ⭐",
-    Description = "Create wide wall and teleport up",
-    CurrentValue = false,
-    Callback = function(Value)
-        FarmLV = Value
-        if FarmLV then
-            CreateSafeWall(FindSafeWallPosition())
-            if SafeWall then SafeWall.Size = Vector3.new(50, 2, 50) end
-            wait(0.3)
-            TeleportToWall()
-            Rayfield:Notify({
-                Title = "⭐ Started!",
-                Content = "Farm LV started.",
-                Duration = 3,
-                Image = 0
-            })
-            
-            if FarmLVConnection then FarmLVConnection:Disconnect() end
-            FarmLVConnection = game:GetService("RunService").Stepped:Connect(function()
-                if FarmLV then pcall(FarmLVLoop) end
-            end)
-        else
-            if FarmLVConnection then FarmLVConnection:Disconnect() FarmLVConnection = nil end
-            Rayfield:Notify({
-                Title = "⏹️ Stopped!",
-                Content = "Farm LV stopped.",
-                Duration = 3,
-                Image = 0
-            })
-        end
-    end
-})
 
 -- =============================================
 -- HÀM TÌM VẬT PHẨM SỰ KIỆN
@@ -178,7 +85,7 @@ local function FindEventItems()
             local isEventItem = false
             local position = nil
             
-            -- Kiểm tra attribute (không dùng tên)
+            -- Kiểm tra attribute
             local attrs = {"CurrencyType", "EventCurrency", "Collectible", "Currency", "Reward", "Value", "Points", "Collectable", "Pickup", "Item", "EventItem"}
             for _, attr in ipairs(attrs) do
                 if obj:GetAttribute(attr) ~= nil then
@@ -187,7 +94,7 @@ local function FindEventItems()
                 end
             end
             
-            -- Kiểm tra tên của ClickDetector
+            -- Kiểm tra tên ClickDetector
             if not isEventItem and clickDetector then
                 local detName = clickDetector.Name:lower()
                 if detName:find("collect") or detName:find("pickup") or detName:find("event") or detName:find("currency") or detName:find("item") then
@@ -251,6 +158,49 @@ local function FindEventItems()
 end
 
 -- =============================================
+-- HÀM CẬP NHẬT LABEL (QUAN TRỌNG - CẬP NHẬT TỪNG LABEL)
+-- =============================================
+local function UpdateLabels()
+    pcall(function()
+        -- 1. CẬP NHẬT EVENT ITEMS
+        local items = FindEventItems()
+        TotalItems = #items
+        CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
+        
+        -- 2. CẬP NHẬT LEVEL
+        local LocalPlayer = game.Players.LocalPlayer
+        local stats = LocalPlayer:FindFirstChild("leaderstats")
+        if stats then
+            local level = stats:FindFirstChild("Level")
+            if level then
+                LevelLabel:Set("⭐ Current Level: " .. level.Value)
+            end
+            
+            -- 3. CẬP NHẬT EXP
+            local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
+            local expToNext = stats:FindFirstChild("ExpToNext") or stats:FindFirstChild("ExperienceToNext")
+            if exp and expToNext then
+                ExpLabel:Set("✨ Exp: " .. exp.Value .. " / " .. expToNext.Value)
+            elseif exp then
+                ExpLabel:Set("✨ Exp: " .. exp.Value)
+            end
+        end
+        
+        -- 4. CẬP NHẬT TRẠNG THÁI EVENT
+        if TotalItems > 0 then
+            EventActive = true
+            EventStatusLabel:Set("⏰ Event: ✅ ACTIVE (" .. TotalItems .. " items)")
+        else
+            EventActive = false
+            EventStatusLabel:Set("⏰ Event: ❌ NONE")
+        end
+    end)
+end
+
+-- Gọi ngay khi chạy
+UpdateLabels()
+
+-- =============================================
 -- HÀM KIỂM TRA SỰ KIỆN
 -- =============================================
 local function CheckEventStatus()
@@ -272,42 +222,6 @@ local function CheckEventStatus()
     end)
     return EventActive
 end
-
--- =============================================
--- HÀM CẬP NHẬT LABEL
--- =============================================
-local function UpdateLabels()
-    pcall(function()
-        local items = FindEventItems()
-        TotalItems = #items
-        CurrencyLabel:Set("🎯 Event Items: " .. #items)
-        
-        local LocalPlayer = game.Players.LocalPlayer
-        local stats = LocalPlayer:FindFirstChild("leaderstats")
-        if stats then
-            local level = stats:FindFirstChild("Level")
-            local exp = stats:FindFirstChild("Exp") or stats:FindFirstChild("Experience")
-            local expToNext = stats:FindFirstChild("ExpToNext") or stats:FindFirstChild("ExperienceToNext")
-            
-            if level then
-                LevelLabel:Set("⭐ Current Level: " .. level.Value)
-            end
-            if exp and expToNext then
-                ExpLabel:Set("✨ Exp: " .. exp.Value .. " / " .. expToNext.Value)
-            elseif exp then
-                ExpLabel:Set("✨ Exp: " .. exp.Value)
-            end
-        end
-        
-        if tick() - LastEventCheck > 5 then
-            LastEventCheck = tick()
-            CheckEventStatus()
-        end
-    end)
-end
-
-UpdateLabels()
-CheckEventStatus()
 
 -- =============================================
 -- TƯỜNG AN TOÀN
@@ -378,6 +292,12 @@ local function CollectItem(item)
     if success then
         CollectedCount = CollectedCount + 1
         CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
+        Rayfield:Notify({
+            Title = "✅ Đã nhặt!",
+            Content = "Đã nhặt #" .. CollectedCount,
+            Duration = 2,
+            Image = 0
+        })
         return true
     end
     return false
@@ -397,8 +317,8 @@ local function FarmLoop()
                 FarmConnection = nil
             end
             Rayfield:Notify({
-                Title = "⛔ No Event!",
-                Content = "No event detected. Auto Farm stopped.",
+                Title = "⛔ Không có event!",
+                Content = "Đã dừng Auto Farm.",
                 Duration = 5,
                 Image = 0
             })
@@ -474,8 +394,74 @@ local function FarmLoop()
 end
 
 -- =============================================
--- FARM LV LOOP
+-- TOGGLE FARM EVENT
 -- =============================================
+FarmTab:CreateToggle({
+    Name = "Auto Farm Event 🎈",
+    Description = "Tự động farm event (không cần tên vật phẩm)",
+    CurrentValue = false,
+    Callback = function(Value)
+        AutoFarm = Value
+        
+        if AutoFarm then
+            if not CheckEventStatus() then
+                Rayfield:Notify({
+                    Title = "⛔ Không có event!",
+                    Content = "Không có event nào đang diễn ra. Không thể bật.",
+                    Duration = 5,
+                    Image = 0
+                })
+                AutoFarm = false
+                return
+            end
+            
+            CollectedCount = 0
+            IsAtWall = false
+            FarmLoopCount = 0
+            
+            Rayfield:Notify({
+                Title = "✅ Đã bật Auto Farm!",
+                Content = "Đang tạo tường và bắt đầu farm...",
+                Duration = 3,
+                Image = 0
+            })
+            
+            CreateSafeWall(FindSafeWallPosition())
+            wait(0.5)
+            TeleportToWall()
+            
+            if FarmConnection then 
+                FarmConnection:Disconnect() 
+            end
+            
+            FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if AutoFarm then 
+                    pcall(FarmLoop) 
+                end
+            end)
+            
+        else
+            if FarmConnection then 
+                FarmConnection:Disconnect() 
+                FarmConnection = nil 
+            end
+            Rayfield:Notify({
+                Title = "⏹️ Đã tắt!",
+                Content = "Tổng cộng đã nhặt: " .. CollectedCount .. " vật phẩm",
+                Duration = 3,
+                Image = 0
+            })
+        end
+    end
+})
+
+-- =============================================
+-- TOGGLE FARM LV
+-- =============================================
+local FarmLVSection = FarmTab:CreateSection("⭐ Auto Farm LV")
+local FarmLV = false
+local FarmLVConnection = nil
+
 local function FarmLVLoop()
     if not FarmLV then return end
     if not SafeWall then
@@ -486,6 +472,40 @@ local function FarmLVLoop()
     end
     TeleportToWall()
 end
+
+FarmTab:CreateToggle({
+    Name = "Auto Farm LV ⭐",
+    Description = "Tạo tường rộng và teleport lên để farm LV",
+    CurrentValue = false,
+    Callback = function(Value)
+        FarmLV = Value
+        if FarmLV then
+            Rayfield:Notify({
+                Title = "⭐ Đã bật Farm LV!",
+                Content = "Đang tạo tường...",
+                Duration = 3,
+                Image = 0
+            })
+            CreateSafeWall(FindSafeWallPosition())
+            if SafeWall then SafeWall.Size = Vector3.new(50, 2, 50) end
+            wait(0.3)
+            TeleportToWall()
+            
+            if FarmLVConnection then FarmLVConnection:Disconnect() end
+            FarmLVConnection = game:GetService("RunService").Stepped:Connect(function()
+                if FarmLV then pcall(FarmLVLoop) end
+            end)
+        else
+            if FarmLVConnection then FarmLVConnection:Disconnect() FarmLVConnection = nil end
+            Rayfield:Notify({
+                Title = "⏹️ Đã tắt Farm LV!",
+                Content = "Đã dừng farm LV.",
+                Duration = 3,
+                Image = 0
+            })
+        end
+    end
+})
 
 -- =============================================
 -- TAB 2: SERVER MODEL
@@ -538,7 +558,7 @@ end
 UpdateServerInfo()
 
 -- =============================================
--- CẬP NHẬT TỰ ĐỘNG
+-- CẬP NHẬT TỰ ĐỘNG (QUAN TRỌNG - CHẠY LIÊN TỤC)
 -- =============================================
 game:GetService("RunService").Heartbeat:Connect(function()
     pcall(function()
@@ -562,5 +582,8 @@ print("[Nexus Hub] Author: Nate & Ngọt")
 print("[Nexus Hub] Auto detect ANY event - No name/value needed")
 print("========================================")
 
-wait(1)
+-- Cập nhật ngay khi chạy
+wait(0.5)
+UpdateLabels()
 CheckEventStatus()
+print("[Nexus Hub] Sẵn sàng! Bật toggle Auto Farm Event để bắt đầu.")
