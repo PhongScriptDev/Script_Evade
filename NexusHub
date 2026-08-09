@@ -1,52 +1,37 @@
 -- =============================================
--- 1. LOAD RAYFIELD
+-- NEXUS HUB - EVADE MENU (RAYFIELD GEN 2)
+-- Created by: Nate & Ngọt
 -- =============================================
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- LOAD RAYFIELD GEN 2
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
+
+if not Rayfield then
+    print("[Nexus Hub] Không thể load Rayfield Gen 2!")
+    return
+end
 
 -- =============================================
--- 2. TẠO WINDOW
+-- TẠO WINDOW
 -- =============================================
 local Window = Rayfield:CreateWindow({
-   Name = "Nexus Hub",
-   Icon = 0,
-   LoadingTitle = "Loading Nexus",
-   LoadingSubtitle = "Script created by: Nate & Ngọt",
-   ShowText = "Nexus",
-   Theme = "Green",
-   ToggleUIKeybind = "K",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = nil,
-      FileName = "Big Hub"
-   },
-   Discord = {
-      Enabled = false,
-      Invite = "noinvitelink",
-      RememberJoins = true
-   },
-   KeySystem = false,
-   KeySettings = {
-      Title = "Untitled",
-      Subtitle = "Key System",
-      Note = "No method of obtaining the key is provided",
-      FileName = "Key",
-      SaveKey = true,
-      GrabKeyFromSite = false,
-      Key = {"Hello"}
-   }
+    name = "Nexus Hub",
+    subtitle = "Script created by: Nate & Ngọt",
+    configuration = {
+        processDelay = 0,
+        savePosition = true
+    }
 })
 
 -- =============================================
--- 3. TẠO TAB
+-- TẠO TAB
 -- =============================================
-local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
-local SelfTab = Window:CreateTab("Self-mechanism", 4483362458)
-local PlayersTab = Window:CreateTab("Players", 4483362458)
+local FarmTab = Window:CreateTab({ name = "Farm Evade", icon = 4483362458 })
+local SelfTab = Window:CreateTab({ name = "Self-mechanism", icon = 4483362458 })
+local PlayersTab = Window:CreateTab({ name = "Players", icon = 4483362458 })
 
 -- =============================================
--- 4. BIẾN TOÀN CỤC
+-- BIẾN TOÀN CỤC
 -- =============================================
 local AutoFarm = false
 local FarmConnection = nil
@@ -79,49 +64,42 @@ local IsDowned = false
 local IsWaitingToJoin = false
 
 -- =============================================
--- 5. DANH SÁCH TÊN VẬT PHẨM
+-- DANH SÁCH TÊN VẬT PHẨM (10 CHỖ)
 -- =============================================
 local ItemNameList = {
-   "Bubble",
-   "none",
-   "none",
-   "none",
-   "none",
-   "none",
-   "none",
-   "none",
-   "none",
-   "none",
+   "Bubble", "none", "none", "none", "none",
+   "none", "none", "none", "none", "none",
 }
 
 -- =============================================
--- 6. FARM EVADE TAB - SECTION THÔNG TIN
+-- FARM EVADE TAB - THÔNG TIN
 -- =============================================
-local InfoSection = FarmTab:CreateSection("📊 Farm Information")
-local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items: 0")
-local EventStatusLabel = FarmTab:CreateLabel("📌 Event: 🔍 Checking...")
-local CurrentCurrencyLabel = FarmTab:CreateLabel("💰 Current currency: 0")
-local EventTimeLabel = FarmTab:CreateLabel("⏰ Time left: Unknown")
+local InfoSection = FarmTab:CreateSection({ name = "📊 Farm Information" })
+local CurrencyLabel = FarmTab:CreateLabel({ name = "🎯 Event Items: 0" })
+local EventStatusLabel = FarmTab:CreateLabel({ name = "📌 Event: 🔍 Checking..." })
+local CurrentCurrencyLabel = FarmTab:CreateLabel({ name = "💰 Current currency: 0" })
+local EventTimeLabel = FarmTab:CreateLabel({ name = "⏰ Time left: Unknown" })
 
 -- =============================================
--- 7. HÀM GỬI THÔNG BÁO
+-- HÀM GỬI THÔNG BÁO
 -- =============================================
 local function SendNotification(title, content, duration)
     duration = duration or 2.5
     if tick() - LastNotifyTime < 0.3 then return end
     LastNotifyTime = tick()
     pcall(function()
-        Rayfield:Notify({
-            Title = title,
-            Content = content,
-            Duration = duration,
-            Image = 0
-        })
+        if Rayfield and Rayfield.Notify then
+            Rayfield:Notify({
+                title = title,
+                content = content,
+                duration = duration
+            })
+        end
     end)
 end
 
 -- =============================================
--- 8. HÀM TƯỜNG
+-- HÀM TƯỜNG
 -- =============================================
 local function FindSafeWallPosition()
     local mapCenter = Vector3.new(0, 0, 0)
@@ -195,7 +173,7 @@ local function CheckAndKeepOnWall()
 end
 
 -- =============================================
--- 9. HÀM AUTO DETECT & TÌM VẬT PHẨM
+-- AUTO DETECT VẬT PHẨM
 -- =============================================
 local function GetActiveItems()
     local active = {}
@@ -215,7 +193,7 @@ local function GetActiveItems()
                 table.insert(active, trimmed)
             end
         end
-        EventStatusLabel:Set("📌 Item target: " .. table.concat(active, ", "))
+        EventStatusLabel:Set({ name = "📌 Item target: " .. table.concat(active, ", ") })
         return active
     end
     UseAutoDetect = true
@@ -269,9 +247,9 @@ local function GetActiveItems()
         end
     end
     if #detected > 0 then
-        EventStatusLabel:Set("📌 Item target: 🔍 Auto Detect (" .. #detected .. " items)")
+        EventStatusLabel:Set({ name = "📌 Item target: 🔍 Auto Detect (" .. #detected .. " items)" })
     else
-        EventStatusLabel:Set("📌 Item target: ⚠️ No items found!")
+        EventStatusLabel:Set({ name = "📌 Item target: ⚠️ No items found!" })
     end
     return detected
 end
@@ -377,6 +355,9 @@ local function GetCurrentCurrency()
     return 0
 end
 
+-- =============================================
+-- COLLECT ITEM
+-- =============================================
 local function CollectItemWithRetry(item)
     if not item or IsCollecting then return false end
     IsCollecting = true
@@ -409,7 +390,7 @@ local function CollectItemWithRetry(item)
         CurrentCurrency = afterCurrency
         SendNotification("🔔 Thông báo nhận vật phẩm sự kiện!", "❓ Vật phẩm nhận được: " .. gained, 2.5)
         SendNotification("🔔 Thông báo vật phẩm sự kiện...", "📌 Vật phẩm hiện tại của bạn là: " .. afterCurrency, 2.5)
-        CurrentCurrencyLabel:Set("💰 Current currency: " .. afterCurrency)
+        CurrentCurrencyLabel:Set({ name = "💰 Current currency: " .. afterCurrency })
         RetryCount = 0
         IsCollecting = false
         return true
@@ -425,7 +406,7 @@ local function CollectItemWithRetry(item)
         if afterCurrency > beforeCurrency then
             CollectedCount = CollectedCount + (afterCurrency - beforeCurrency)
             CurrentCurrency = afterCurrency
-            CurrentCurrencyLabel:Set("💰 Current currency: " .. afterCurrency)
+            CurrentCurrencyLabel:Set({ name = "💰 Current currency: " .. afterCurrency })
             SendNotification("🔔 Thông báo nhận vật phẩm sự kiện!", "❓ Vật phẩm nhận được: " .. (afterCurrency - beforeCurrency), 2.5)
             SendNotification("🔔 Thông báo vật phẩm sự kiện...", "📌 Vật phẩm hiện tại của bạn là: " .. afterCurrency, 2.5)
             IsCollecting = false
@@ -437,7 +418,7 @@ local function CollectItemWithRetry(item)
 end
 
 -- =============================================
--- 10. HÀM SCAN GAME & REVIVE
+-- SCAN GAME
 -- =============================================
 local function ScanGameForEvent()
     local found = false
@@ -504,18 +485,21 @@ local function UpdateEventStatus()
             elseif source == "map" then
                 statusText = statusText .. " (Map)"
             end
-            EventStatusLabel:Set(statusText)
+            EventStatusLabel:Set({ name = statusText })
             if timeLeft ~= "Unknown" then
-                EventTimeLabel:Set("⏰ Time left: " .. timeLeft)
+                EventTimeLabel:Set({ name = "⏰ Time left: " .. timeLeft })
             end
         else
             EventActive = false
-            EventStatusLabel:Set("📌 Event: ❌ NONE")
-            EventTimeLabel:Set("⏰ Time left: No event")
+            EventStatusLabel:Set({ name = "📌 Event: ❌ NONE" })
+            EventTimeLabel:Set({ name = "⏰ Time left: No event" })
         end
     end)
 end
 
+-- =============================================
+-- REVIVE
+-- =============================================
 local function AutoRevive()
     if IsReviving then return end
     IsReviving = true
@@ -659,7 +643,7 @@ local function CheckAndJoinMap()
 end
 
 -- =============================================
--- 11. FARM LOOP
+-- FARM LOOP
 -- =============================================
 local function FarmLoop()
     if not AutoFarm then return end
@@ -686,7 +670,7 @@ local function FarmLoop()
                 FarmConnection = nil
             end
             SendNotification("⛔ KHÔNG CÓ SỰ KIỆN!", "Không tìm thấy sự kiện trong game. Đã tự động tắt farm.", 5)
-            EventStatusLabel:Set("📌 Event: ❌ NONE")
+            EventStatusLabel:Set({ name = "📌 Event: ❌ NONE" })
         end
         return
     end
@@ -698,7 +682,7 @@ local function FarmLoop()
     CheckAndKeepOnWall()
     local items = FindEventItems()
     TotalItems = #items
-    CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
+    CurrencyLabel:Set({ name = "🎯 Event Items: " .. TotalItems })
     if TotalItems == 0 then
         if not IsAtWall then TeleportToWall() end
         FarmCooldown = tick()
@@ -730,14 +714,14 @@ local function FarmLoop()
 end
 
 -- =============================================
--- 12. AUTO FARM EVENT TOGGLE
+-- TOGGLE AUTO FARM EVENT
 -- =============================================
-local FarmEventSection = FarmTab:CreateSection("🎈 Auto Farm Event")
+local FarmEventSection = FarmTab:CreateSection({ name = "🎈 Auto Farm Event" })
 FarmTab:CreateToggle({
-    Name = "Auto Farm Event 🎈",
-    Description = "Tự động farm vật phẩm (có tự động hồi sinh)",
-    CurrentValue = false,
-    Callback = function(Value)
+    name = "Auto Farm Event 🎈",
+    description = "Tự động farm vật phẩm (có tự động hồi sinh)",
+    flag = "AutoFarmEvent",
+    callback = function(Value)
         AutoFarm = Value
         if AutoFarm then
             CollectedCount = 0
@@ -751,7 +735,7 @@ FarmTab:CreateToggle({
             if not eventActive then
                 AutoFarm = false
                 SendNotification("⛔ KHÔNG CÓ SỰ KIỆN!", "Không tìm thấy sự kiện trong game. Không thể bật farm.", 5)
-                EventStatusLabel:Set("📌 Event: ❌ NONE")
+                EventStatusLabel:Set({ name = "📌 Event: ❌ NONE" })
                 return
             end
             local activeItems = GetActiveItems()
@@ -761,15 +745,15 @@ FarmTab:CreateToggle({
                 return
             end
             if eventName and eventName ~= "Unknown" then
-                EventStatusLabel:Set("📌 Event: ✅ " .. string.sub(eventName, 1, 30))
+                EventStatusLabel:Set({ name = "📌 Event: ✅ " .. string.sub(eventName, 1, 30) })
             else
-                EventStatusLabel:Set("📌 Event: ✅ ACTIVE")
+                EventStatusLabel:Set({ name = "📌 Event: ✅ ACTIVE" })
             end
             if eventTime and eventTime ~= "Unknown" then
-                EventTimeLabel:Set("⏰ Time left: " .. eventTime)
+                EventTimeLabel:Set({ name = "⏰ Time left: " .. eventTime })
             end
             CurrentCurrency = GetCurrentCurrency()
-            CurrentCurrencyLabel:Set("💰 Current currency: " .. CurrentCurrency)
+            CurrentCurrencyLabel:Set({ name = "💰 Current currency: " .. CurrentCurrency })
             SendNotification("⚡ Kích hoạt farm!", "🛡️ Sự kiện đang diễn ra!", 2)
             SendNotification("❗ Tạo tường...", "🕚 Đang tạo...", 2)
             CreateSafeWall(FindSafeWallPosition())
@@ -792,7 +776,7 @@ FarmTab:CreateToggle({
 })
 
 -- =============================================
--- 13. FARM LV
+-- FARM LV LOOP
 -- =============================================
 local function FarmLVLoop()
     if not FarmLV then return end
@@ -821,12 +805,15 @@ local function FarmLVLoop()
     end
 end
 
-local FarmLVSection = FarmTab:CreateSection("⭐ Auto Farm LV")
+-- =============================================
+-- TOGGLE AUTO FARM LV
+-- =============================================
+local FarmLVSection = FarmTab:CreateSection({ name = "⭐ Auto Farm LV" })
 FarmTab:CreateToggle({
-    Name = "Auto Farm LV ⭐",
-    Description = "Tạo tường và giữ trên tường (có tự động hồi sinh)",
-    CurrentValue = false,
-    Callback = function(Value)
+    name = "Auto Farm LV ⭐",
+    description = "Tạo tường và giữ trên tường (có tự động hồi sinh)",
+    flag = "AutoFarmLV",
+    callback = function(Value)
         FarmLV = Value
         if FarmLV then
             SendNotification("⭐ Bật Farm LV!", "🔄 Đang tạo tường...", 2)
@@ -849,7 +836,7 @@ FarmTab:CreateToggle({
 })
 
 -- =============================================
--- 14. AUTO RESCUE
+-- AUTO RESCUE LOOP
 -- =============================================
 local function FindDownedPlayer()
     local LocalPlayer = game.Players.LocalPlayer
@@ -956,12 +943,15 @@ local function RescueLoop()
     end
 end
 
-local RescueSection = FarmTab:CreateSection("🏥 Auto Rescue")
+-- =============================================
+-- TOGGLE AUTO RESCUE
+-- =============================================
+local RescueSection = FarmTab:CreateSection({ name = "🏥 Auto Rescue" })
 FarmTab:CreateToggle({
-    Name = "Auto Rescue 🏥",
-    Description = "Tự động tìm và cứu người bị hạ gục (có tự động hồi sinh)",
-    CurrentValue = false,
-    Callback = function(Value)
+    name = "Auto Rescue 🏥",
+    description = "Tự động tìm và cứu người bị hạ gục (có tự động hồi sinh)",
+    flag = "AutoRescue",
+    callback = function(Value)
         AutoRescue = Value
         if AutoRescue then
             RescuedCount = 0
@@ -989,9 +979,9 @@ FarmTab:CreateToggle({
 })
 
 -- =============================================
--- 15. SELF-MECHANISM TAB
+-- SELF-MECHANISM TAB
 -- =============================================
-local ReviveSection = SelfTab:CreateSection("💀 Revive Yourself")
+local ReviveSection = SelfTab:CreateSection({ name = "💀 Revive Yourself" })
 
 local function CheckAndRevive()
     if not ReviveSelf then return end
@@ -1011,10 +1001,10 @@ local function CheckAndRevive()
 end
 
 SelfTab:CreateToggle({
-    Name = "Revive Yourself 💀",
-    Description = "Tự động hồi sinh bản thân bất kỳ lúc nào",
-    CurrentValue = false,
-    Callback = function(Value)
+    name = "Revive Yourself 💀",
+    description = "Tự động hồi sinh bản thân bất kỳ lúc nào",
+    flag = "ReviveSelf",
+    callback = function(Value)
         ReviveSelf = Value
         if ReviveSelf then
             SendNotification("⚡ Đã kích hoạt hồi sinh bản thân...", "🤫 Có những con gà mà người chơi không biết", 3)
@@ -1033,9 +1023,9 @@ SelfTab:CreateToggle({
 })
 
 -- =============================================
--- 16. PLAYERS TAB
+-- PLAYERS TAB - FPS COUNTER
 -- =============================================
-local FPSSection = PlayersTab:CreateSection("📊 FPS Counter")
+local FPSSection = PlayersTab:CreateSection({ name = "📊 FPS Counter" })
 
 local ShowFPS = false
 local FPSScreenGui = nil
@@ -1095,10 +1085,10 @@ local function CreateFPSGui()
 end
 
 PlayersTab:CreateToggle({
-    Name = "Show FPS 📊",
-    Description = "Hiển thị FPS ở góc phải trên cùng",
-    CurrentValue = false,
-    Callback = function(Value)
+    name = "Show FPS 📊",
+    description = "Hiển thị FPS ở góc phải trên cùng",
+    flag = "ShowFPS",
+    callback = function(Value)
         ShowFPS = Value
         if ShowFPS then
             CreateFPSGui()
@@ -1116,7 +1106,7 @@ PlayersTab:CreateToggle({
 })
 
 -- =============================================
--- 17. CẬP NHẬP TỰ ĐỘNG (GIẢM LAG)
+-- CẬP NHẬP TỰ ĐỘNG
 -- =============================================
 game:GetService("RunService").Heartbeat:Connect(function()
     UpdateCounter = UpdateCounter + 1
@@ -1125,9 +1115,9 @@ game:GetService("RunService").Heartbeat:Connect(function()
         UpdateEventStatus()
         local items = FindEventItems()
         TotalItems = #items
-        CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
+        CurrencyLabel:Set({ name = "🎯 Event Items: " .. TotalItems })
         CurrentCurrency = GetCurrentCurrency()
-        CurrentCurrencyLabel:Set("💰 Current currency: " .. CurrentCurrency)
+        CurrentCurrencyLabel:Set({ name = "💰 Current currency: " .. CurrentCurrency })
         if AutoFarm or FarmLV or AutoRescue then
             CheckAndKeepOnWall()
         end
