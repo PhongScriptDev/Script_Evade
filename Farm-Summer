@@ -94,7 +94,24 @@ local CurrentCurrencyLabel = FarmTab:CreateLabel("💰 Current currency: 0")
 local EventTimeLabel = FarmTab:CreateLabel("⏰ Time left: Unknown")
 
 -- =============================================
--- HÀM TÌM VỊ TRÍ TƯỜNG & TẠO TƯỜNG
+-- HÀM GỬI THÔNG BÁO
+-- =============================================
+local function SendNotification(title, content, duration)
+    duration = duration or 2.5
+    if tick() - LastNotifyTime < 0.3 then return end
+    LastNotifyTime = tick()
+    pcall(function()
+        Rayfield:Notify({
+            Title = title,
+            Content = content,
+            Duration = duration,
+            Image = 0
+        })
+    end)
+end
+
+-- =============================================
+-- HÀM TƯỜNG
 -- =============================================
 local function FindSafeWallPosition()
     local mapCenter = Vector3.new(0, 0, 0)
@@ -168,7 +185,7 @@ local function CheckAndKeepOnWall()
 end
 
 -- =============================================
--- HÀM AUTO DETECT VẬT PHẨM
+-- HÀM AUTO DETECT & TÌM VẬT PHẨM
 -- =============================================
 local function GetActiveItems()
     local active = {}
@@ -249,9 +266,6 @@ local function GetActiveItems()
     return detected
 end
 
--- =============================================
--- HÀM TÌM VẬT PHẨM TRONG MAP
--- =============================================
 local function FindEventItems()
     local items = {}
     local LocalPlayer = game.Players.LocalPlayer
@@ -413,7 +427,7 @@ local function CollectItemWithRetry(item)
 end
 
 -- =============================================
--- HÀM KIỂM TRA MAP VÀ TỰ ĐỘNG VÀO MAP
+-- HÀM SCAN GAME & REVIVE
 -- =============================================
 local function ScanGameForEvent()
     local found = false
@@ -492,23 +506,6 @@ local function UpdateEventStatus()
     end)
 end
 
-local function SendNotification(title, content, duration)
-    duration = duration or 2.5
-    if tick() - LastNotifyTime < 0.3 then return end
-    LastNotifyTime = tick()
-    pcall(function()
-        Rayfield:Notify({
-            Title = title,
-            Content = content,
-            Duration = duration,
-            Image = 0
-        })
-    end)
-end
-
--- =============================================
--- HÀM REVIVE & KIỂM TRA TRẠNG THÁI
--- =============================================
 local function AutoRevive()
     if IsReviving then return end
     IsReviving = true
@@ -988,7 +985,6 @@ local SelfTab = Window:CreateTab("Self-mechanism", 4483362458)
 
 local ReviveSection = SelfTab:CreateSection("💀 Revive Yourself")
 
--- HÀM REVIVE CHO TOGGLE REVIVE YOURSELF
 local function CheckAndRevive()
     if not ReviveSelf then return end
     local LocalPlayer = game.Players.LocalPlayer
@@ -1137,5 +1133,6 @@ print("[Nexus Hub] Loaded successfully!")
 print("[Nexus Hub] Author: Nate & Ngọt")
 print("========================================")
 
-wait(1)
+-- Cập nhật ngay khi khởi động
+wait(0.5)
 UpdateEventStatus()
