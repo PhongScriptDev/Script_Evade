@@ -1,27 +1,10 @@
 -- =============================================
--- LOAD RAYFIELD VỚI PCALL ĐỂ TRÁNH LỖI
+-- LOAD RAYFIELD
 -- =============================================
-local success, Rayfield = pcall(function()
-    return loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-end)
-
-if not success or not Rayfield then
-    print("[Nexus Hub] Không thể load Rayfield! Thử lại...")
-    wait(1)
-    local success2, Rayfield2 = pcall(function()
-        return loadstring(game:HttpGet('https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/Kavo%20Ui.lua'))()
-    end)
-    if success2 and Rayfield2 then
-        Rayfield = Rayfield2
-        print("[Nexus Hub] Đã load Kavo UI thay thế")
-    else
-        print("[Nexus Hub] Không thể load UI Library!")
-        return
-    end
-end
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- =============================================
--- TẠO WINDOW (CHỈ 1 LẦN)
+-- TẠO WINDOW
 -- =============================================
 local Window = Rayfield:CreateWindow({
    Name = "Nexus Hub",
@@ -54,6 +37,13 @@ local Window = Rayfield:CreateWindow({
       Key = {"Hello"}
    }
 })
+
+-- =============================================
+-- TẠO TAB
+-- =============================================
+local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
+local SelfTab = Window:CreateTab("Self-mechanism", 4483362458)
+local PlayersTab = Window:CreateTab("Players", 4483362458)
 
 -- =============================================
 -- BIẾN TOÀN CỤC
@@ -105,11 +95,8 @@ local ItemNameList = {
 }
 
 -- =============================================
--- TAB 1: FARM EVADE
+-- FARM EVADE TAB
 -- =============================================
-local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
-
--- SECTION: THÔNG TIN FARM
 local InfoSection = FarmTab:CreateSection("📊 Farm Information")
 local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items: 0")
 local EventStatusLabel = FarmTab:CreateLabel("📌 Event: 🔍 Checking...")
@@ -124,14 +111,12 @@ local function SendNotification(title, content, duration)
     if tick() - LastNotifyTime < 0.3 then return end
     LastNotifyTime = tick()
     pcall(function()
-        if Rayfield then
-            Rayfield:Notify({
-                Title = title,
-                Content = content,
-                Duration = duration,
-                Image = 0
-            })
-        end
+        Rayfield:Notify({
+            Title = title,
+            Content = content,
+            Duration = duration,
+            Image = 0
+        })
     end)
 end
 
@@ -210,7 +195,7 @@ local function CheckAndKeepOnWall()
 end
 
 -- =============================================
--- HÀM AUTO DETECT & TÌM VẬT PHẨM
+-- HÀM AUTO DETECT
 -- =============================================
 local function GetActiveItems()
     local active = {}
@@ -452,7 +437,7 @@ local function CollectItemWithRetry(item)
 end
 
 -- =============================================
--- HÀM SCAN GAME & REVIVE
+-- SCAN GAME
 -- =============================================
 local function ScanGameForEvent()
     local found = false
@@ -744,7 +729,7 @@ local function FarmLoop()
     FarmCooldown = tick()
 end
 
--- SECTION: AUTO FARM EVENT
+-- AUTO FARM EVENT
 local FarmEventSection = FarmTab:CreateSection("🎈 Auto Farm Event")
 FarmTab:CreateToggle({
     Name = "Auto Farm Event 🎈",
@@ -805,7 +790,7 @@ FarmTab:CreateToggle({
 })
 
 -- =============================================
--- FARM LV LOOP
+-- FARM LV
 -- =============================================
 local function FarmLVLoop()
     if not FarmLV then return end
@@ -834,7 +819,6 @@ local function FarmLVLoop()
     end
 end
 
--- SECTION: FARM LV
 local FarmLVSection = FarmTab:CreateSection("⭐ Auto Farm LV")
 FarmTab:CreateToggle({
     Name = "Auto Farm LV ⭐",
@@ -863,7 +847,7 @@ FarmTab:CreateToggle({
 })
 
 -- =============================================
--- AUTO RESCUE LOOP
+-- AUTO RESCUE
 -- =============================================
 local function FindDownedPlayer()
     local LocalPlayer = game.Players.LocalPlayer
@@ -915,7 +899,8 @@ local function RescueLoop()
     if state == "dead" then
         CheckAndJoinMap()
         return
-    elseif state == "downed" then        AutoRevive()
+    elseif state == "downed" then
+        AutoRevive()
         return
     elseif state == "unknown" then
         return
@@ -969,7 +954,6 @@ local function RescueLoop()
     end
 end
 
--- SECTION: AUTO RESCUE
 local RescueSection = FarmTab:CreateSection("🏥 Auto Rescue")
 FarmTab:CreateToggle({
     Name = "Auto Rescue 🏥",
@@ -1003,10 +987,8 @@ FarmTab:CreateToggle({
 })
 
 -- =============================================
--- TAB 2: SELF-MECHANISM
+-- SELF-MECHANISM TAB
 -- =============================================
-local SelfTab = Window:CreateTab("Self-mechanism", 4483362458)
-
 local ReviveSection = SelfTab:CreateSection("💀 Revive Yourself")
 
 local function CheckAndRevive()
@@ -1049,10 +1031,8 @@ SelfTab:CreateToggle({
 })
 
 -- =============================================
--- TAB 3: PLAYERS
+-- PLAYERS TAB
 -- =============================================
-local PlayersTab = Window:CreateTab("Players", 4483362458)
-
 local FPSSection = PlayersTab:CreateSection("📊 FPS Counter")
 
 local ShowFPS = false
@@ -1157,5 +1137,4 @@ print("[Nexus Hub] Loaded successfully!")
 print("[Nexus Hub] Author: Nate & Ngọt")
 print("========================================")
 
-wait(0.5)
 UpdateEventStatus()
