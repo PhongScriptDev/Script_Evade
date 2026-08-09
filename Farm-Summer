@@ -1,42 +1,31 @@
+-- =============================================
+-- LOAD RAYFIELD
+-- =============================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
+-- =============================================
+-- TẠO WINDOW (SỬA LỖI)
+-- =============================================
 local Window = Rayfield:CreateWindow({
    Name = "Nexus Hub",
-   Icon = 0,
    LoadingTitle = "Loading Nexus",
    LoadingSubtitle = "Script created by: Nate & Ngọt",
-   ShowText = "Nexus",
-   Theme = "Green",
-   ToggleUIKeybind = "K",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = nil,
-      FileName = "Big Hub"
-   },
-   Discord = {
-      Enabled = false,
-      Invite = "noinvitelink",
-      RememberJoins = true
-   },
-   KeySystem = false,
-   KeySettings = {
-      Title = "Untitled",
-      Subtitle = "Key System",
-      Note = "No method of obtaining the key is provided",
-      FileName = "Key",
-      SaveKey = true,
-      GrabKeyFromSite = false,
-      Key = {"Hello"}
+   Configuration = {
+      ProcessDelay = 0,
+      SavePosition = true
    }
 })
 
+-- =============================================
 -- TẠO TAB
+-- =============================================
 local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
 local SelfTab = Window:CreateTab("Self-mechanism", 4483362458)
+local PlayersTab = Window:CreateTab("Players", 4483362458)
 
+-- =============================================
 -- BIẾN TOÀN CỤC
+-- =============================================
 local AutoFarm = false
 local FarmConnection = nil
 local CollectedCount = 0
@@ -47,6 +36,7 @@ local SafeWall = nil
 local WallPosition = nil
 local LastNotifyTime = 0
 local RetryCount = 0
+local MaxRetries = 5
 local FarmLV = false
 local FarmLVConnection = nil
 local UpdateCounter = 0
@@ -55,6 +45,7 @@ local AutoRescue = false
 local RescueConnection = nil
 local RescuedCount = 0
 local IsCollecting = false
+local UseAutoDetect = true
 local EventActive = false
 local EventName = "Unknown"
 local EventTimeLeft = "Unknown"
@@ -65,6 +56,9 @@ local IsDead = false
 local IsDowned = false
 local IsWaitingToJoin = false
 
+-- =============================================
+-- DANH SÁCH TÊN VẬT PHẨM (SỬA TẠI ĐÂY)
+-- =============================================
 local ItemNameList = {
    "Bubble",
    "none",
@@ -78,13 +72,18 @@ local ItemNameList = {
    "none",
 }
 
+-- =============================================
 -- FARM EVADE TAB
+-- =============================================
 local InfoSection = FarmTab:CreateSection("📊 Farm Information")
 local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items: 0")
 local EventStatusLabel = FarmTab:CreateLabel("📌 Event: 🔍 Checking...")
 local CurrentCurrencyLabel = FarmTab:CreateLabel("💰 Current currency: 0")
 local EventTimeLabel = FarmTab:CreateLabel("⏰ Time left: Unknown")
 
+-- =============================================
+-- HÀM GỬI THÔNG BÁO
+-- =============================================
 local function SendNotification(title, content, duration)
     duration = duration or 2.5
     if tick() - LastNotifyTime < 0.3 then return end
@@ -99,6 +98,9 @@ local function SendNotification(title, content, duration)
     end)
 end
 
+-- =============================================
+-- HÀM TƯỜNG
+-- =============================================
 local function FindSafeWallPosition()
     local mapCenter = Vector3.new(0, 0, 0)
     for _, obj in ipairs(workspace:GetDescendants()) do
@@ -170,6 +172,9 @@ local function CheckAndKeepOnWall()
     end
 end
 
+-- =============================================
+-- HÀM AUTO DETECT
+-- =============================================
 local function GetActiveItems()
     local active = {}
     local hasManual = false
@@ -181,6 +186,7 @@ local function GetActiveItems()
         end
     end
     if hasManual then
+        UseAutoDetect = false
         for _, name in ipairs(ItemNameList) do
             local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
             if trimmed ~= "" and trimmed:lower() ~= "none" then
@@ -190,6 +196,7 @@ local function GetActiveItems()
         EventStatusLabel:Set("📌 Item target: " .. table.concat(active, ", "))
         return active
     end
+    UseAutoDetect = true
     local detected = {}
     local LocalPlayer = game.Players.LocalPlayer
     local character = LocalPlayer.Character
@@ -407,6 +414,9 @@ local function CollectItemWithRetry(item)
     return false
 end
 
+-- =============================================
+-- SCAN GAME
+-- =============================================
 local function ScanGameForEvent()
     local found = false
     local name = "Unknown"
@@ -626,7 +636,9 @@ local function CheckAndJoinMap()
     end
 end
 
+-- =============================================
 -- FARM LOOP
+-- =============================================
 local function FarmLoop()
     if not AutoFarm then return end
     local state = CheckPlayerState()
@@ -755,7 +767,9 @@ FarmTab:CreateToggle({
     end
 })
 
+-- =============================================
 -- FARM LV
+-- =============================================
 local function FarmLVLoop()
     if not FarmLV then return end
     local state = CheckPlayerState()
@@ -810,7 +824,9 @@ FarmTab:CreateToggle({
     end
 })
 
+-- =============================================
 -- AUTO RESCUE
+-- =============================================
 local function FindDownedPlayer()
     local LocalPlayer = game.Players.LocalPlayer
     local nearestDowned = nil
@@ -900,8 +916,7 @@ local function RescueLoop()
                 local targetHumanoid = targetChar:FindFirstChild("Humanoid")
                 if targetHumanoid then
                     pcall(function()
-                        targetHumanoid.Health = 100
-                        local downed = targetChar:FindFirstChild("Downed")
+                        targetHumanoid.Health = 100                        local downed = targetChar:FindFirstChild("Downed")
                         if downed then downed:Destroy() end
                         RescuedCount = RescuedCount + 1
                         SendNotification("❤️ Đã cứu!", "Đã cứu " .. downedPlayer.Name .. " (#" .. RescuedCount .. ")", 3)
@@ -948,7 +963,9 @@ FarmTab:CreateToggle({
     end
 })
 
+-- =============================================
 -- SELF-MECHANISM TAB
+-- =============================================
 local ReviveSection = SelfTab:CreateSection("💀 Revive Yourself")
 
 local function CheckAndRevive()
@@ -990,7 +1007,92 @@ SelfTab:CreateToggle({
     end
 })
 
+-- =============================================
+-- PLAYERS TAB
+-- =============================================
+local FPSSection = PlayersTab:CreateSection("📊 FPS Counter")
+
+local ShowFPS = false
+local FPSScreenGui = nil
+local FPSFrame = nil
+local FPSLabel = nil
+local FPSConnection = nil
+
+local function CreateFPSGui()
+    if FPSScreenGui then
+        FPSScreenGui:Destroy()
+        FPSScreenGui = nil
+    end
+    if not ShowFPS then return end
+    FPSScreenGui = Instance.new("ScreenGui")
+    FPSScreenGui.Name = "FPS_Counter"
+    FPSScreenGui.ResetOnSpawn = false
+    FPSScreenGui.Parent = game:GetService("CoreGui")
+    FPSFrame = Instance.new("Frame")
+    FPSFrame.Size = UDim2.new(0, 70, 0, 40)
+    FPSFrame.Position = UDim2.new(1, -85, 0, 10)
+    FPSFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    FPSFrame.BackgroundTransparency = 0.8
+    FPSFrame.BorderSizePixel = 2
+    FPSFrame.ClipsDescendants = true
+    FPSFrame.Parent = FPSScreenGui
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = FPSFrame
+    FPSLabel = Instance.new("TextLabel")
+    FPSLabel.Size = UDim2.new(1, 0, 1, 0)
+    FPSLabel.Position = UDim2.new(0, 0, 0, 0)
+    FPSLabel.Text = "FPS: 0"
+    FPSLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    FPSLabel.TextSize = 14
+    FPSLabel.Font = Enum.Font.GothamBold
+    FPSLabel.BackgroundTransparency = 1
+    FPSLabel.TextScaled = true
+    FPSLabel.Parent = FPSFrame
+    local frameCount = 0
+    local lastTime = tick()
+    if FPSConnection then FPSConnection:Disconnect() end
+    FPSConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not ShowFPS then return end
+        frameCount = frameCount + 1
+        local currentTime = tick()
+        if currentTime - lastTime >= 1 then
+            local fps = math.floor(frameCount / (currentTime - lastTime))
+            if FPSLabel then FPSLabel.Text = "FPS: " .. fps end
+            frameCount = 0
+            lastTime = currentTime
+        end
+        if FPSFrame then
+            local hue = (tick() * 0.5) % 1
+            FPSFrame.BorderColor3 = Color3.fromHSV(hue, 1, 1)
+        end
+    end)
+end
+
+PlayersTab:CreateToggle({
+    Name = "Show FPS 📊",
+    Description = "Hiển thị FPS ở góc phải trên cùng",
+    CurrentValue = false,
+    Callback = function(Value)
+        ShowFPS = Value
+        if ShowFPS then
+            CreateFPSGui()
+        else
+            if FPSScreenGui then
+                FPSScreenGui:Destroy()
+                FPSScreenGui = nil
+            end
+            if FPSConnection then
+                FPSConnection:Disconnect()
+                FPSConnection = nil
+            end
+        end
+    end
+})
+
+-- =============================================
 -- CẬP NHẬP TỰ ĐỘNG
+-- =============================================
 game:GetService("RunService").Heartbeat:Connect(function()
     UpdateCounter = UpdateCounter + 1
     if UpdateCounter % 3 ~= 0 then return end
