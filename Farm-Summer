@@ -1,28 +1,49 @@
 -- =============================================
--- LOAD RAYFIELD GEN2
+-- LOAD RAYFIELD
 -- =============================================
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()[reference:2][reference:3]
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- =============================================
 -- TẠO WINDOW
 -- =============================================
-local window = Rayfield:CreateWindow({
-    name = "Nexus Hub",
-    subtitle = "by Nate & Ngọt",
-    theme = "cobalt", -- Có thể đổi thành: default, ember, amethyst, frost, rose[reference:4]
-    configuration = {
-        autoSave = true,
-        autoLoad = true,
-        fileName = "NexusHub"
-    }
-})[reference:5][reference:6][reference:7]
+local Window = Rayfield:CreateWindow({
+   Name = "Nexus Hub",
+   Icon = 0,
+   LoadingTitle = "Loading Nexus",
+   LoadingSubtitle = "Script created by: Nate & Ngọt",
+   ShowText = "Nexus",
+   Theme = "Green",
+   ToggleUIKeybind = "K",
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil,
+      FileName = "Big Hub"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
+   },
+   KeySystem = false,
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided",
+      FileName = "Key",
+      SaveKey = true,
+      GrabKeyFromSite = false,
+      Key = {"Hello"}
+   }
+})
 
 -- =============================================
 -- TẠO TAB
 -- =============================================
-local farmTab = window:CreateTab({ name = "Farm Evade", icon = 4483362458 })[reference:8]
-local selfTab = window:CreateTab({ name = "Self-mechanism", icon = 4483362458 })
-local playersTab = window:CreateTab({ name = "Players", icon = 4483362458 })
+local FarmTab = Window:CreateTab("Farm Evade", 4483362458)
+local SelfTab = Window:CreateTab("Self-mechanism", 4483362458)
+local PlayersTab = Window:CreateTab("Players", 4483362458)
 
 -- =============================================
 -- BIẾN TOÀN CỤC
@@ -76,11 +97,11 @@ local ItemNameList = {
 -- =============================================
 -- FARM EVADE TAB
 -- =============================================
-farmTab:CreateSection({ name = "📊 Farm Information" })
-local CurrencyLabel = farmTab:CreateLabel({ name = "🎯 Event Items: 0", icon = 4483362458 })[reference:9]
-local EventStatusLabel = farmTab:CreateLabel({ name = "📌 Event: 🔍 Checking...", icon = 4483362458 })
-local CurrentCurrencyLabel = farmTab:CreateLabel({ name = "💰 Current currency: 0", icon = 4483362458 })
-local EventTimeLabel = farmTab:CreateLabel({ name = "⏰ Time left: Unknown", icon = 4483362458 })
+local InfoSection = FarmTab:CreateSection("📊 Farm Information")
+local CurrencyLabel = FarmTab:CreateLabel("🎯 Event Items: 0")
+local EventStatusLabel = FarmTab:CreateLabel("📌 Event: 🔍 Checking...")
+local CurrentCurrencyLabel = FarmTab:CreateLabel("💰 Current currency: 0")
+local EventTimeLabel = FarmTab:CreateLabel("⏰ Time left: Unknown")
 
 -- =============================================
 -- HÀM GỬI THÔNG BÁO
@@ -90,11 +111,12 @@ local function SendNotification(title, content, duration)
     if tick() - LastNotifyTime < 0.3 then return end
     LastNotifyTime = tick()
     pcall(function()
-        window:Notify({
-            title = title,
-            content = content,
-            duration = duration
-        })[reference:10][reference:11]
+        Rayfield:Notify({
+            Title = title,
+            Content = content,
+            Duration = duration,
+            Image = 0
+        })
     end)
 end
 
@@ -141,9 +163,9 @@ local function CreateSafeWall(position)
 end
 
 local function TeleportToWall()
-    if not SafeWall then
+    if not SafeWall then 
         CreateSafeWall(FindSafeWallPosition())
-        task.wait(0.1)
+        wait(0.1)
     end
     if not SafeWall then return false end
     local char = game.Players.LocalPlayer.Character
@@ -193,7 +215,7 @@ local function GetActiveItems()
                 table.insert(active, trimmed)
             end
         end
-        EventStatusLabel:Update({ name = "📌 Item target: " .. table.concat(active, ", ") })
+        EventStatusLabel:Set("📌 Item target: " .. table.concat(active, ", "))
         return active
     end
     UseAutoDetect = true
@@ -236,7 +258,7 @@ local function GetActiveItems()
                 end
             end
             if not isCurrency then
-                if obj:GetAttribute("CurrencyType") or obj:GetAttribute("EventCurrency") or
+                if obj:GetAttribute("CurrencyType") or obj:GetAttribute("EventCurrency") or 
                    obj:GetAttribute("Currency") or obj:GetAttribute("Value") then
                     isCurrency = true
                 end
@@ -247,9 +269,9 @@ local function GetActiveItems()
         end
     end
     if #detected > 0 then
-        EventStatusLabel:Update({ name = "📌 Item target: 🔍 Auto Detect (" .. #detected .. " items)" })
+        EventStatusLabel:Set("📌 Item target: 🔍 Auto Detect (" .. #detected .. " items)")
     else
-        EventStatusLabel:Update({ name = "📌 Item target: ⚠️ No items found!" })
+        EventStatusLabel:Set("📌 Item target: ⚠️ No items found!")
     end
     return detected
 end
@@ -376,7 +398,7 @@ local function CollectItemWithRetry(item)
             local char = game.Players.LocalPlayer.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
                 char.HumanoidRootPart.CFrame = CFrame.new(item.position + Vector3.new(0, 0.5, 0))
-                task.wait(0.1)
+                wait(0.1)
             end
         end
     end
@@ -387,7 +409,7 @@ local function CollectItemWithRetry(item)
         CurrentCurrency = afterCurrency
         SendNotification("🔔 Thông báo nhận vật phẩm sự kiện!", "❓ Vật phẩm nhận được: " .. gained, 2.5)
         SendNotification("🔔 Thông báo vật phẩm sự kiện...", "📌 Vật phẩm hiện tại của bạn là: " .. afterCurrency, 2.5)
-        CurrentCurrencyLabel:Update({ name = "💰 Current currency: " .. afterCurrency })
+        CurrentCurrencyLabel:Set("💰 Current currency: " .. afterCurrency)
         RetryCount = 0
         IsCollecting = false
         return true
@@ -403,7 +425,7 @@ local function CollectItemWithRetry(item)
         if afterCurrency > beforeCurrency then
             CollectedCount = CollectedCount + (afterCurrency - beforeCurrency)
             CurrentCurrency = afterCurrency
-            CurrentCurrencyLabel:Update({ name = "💰 Current currency: " .. afterCurrency })
+            CurrentCurrencyLabel:Set("💰 Current currency: " .. afterCurrency)
             SendNotification("🔔 Thông báo nhận vật phẩm sự kiện!", "❓ Vật phẩm nhận được: " .. (afterCurrency - beforeCurrency), 2.5)
             SendNotification("🔔 Thông báo vật phẩm sự kiện...", "📌 Vật phẩm hiện tại của bạn là: " .. afterCurrency, 2.5)
             IsCollecting = false
@@ -430,7 +452,7 @@ local function ScanGameForEvent()
                 local text = gui.Text or ""
                 local textLower = text:lower()
                 local eventKeywords = {
-                    "sự kiện", "event", "summer", "halloween", "christmas",
+                    "sự kiện", "event", "summer", "halloween", "christmas", 
                     "valentine", "easter", "spring", "fall", "winter", "newyear",
                     "festival", "mùa hè", "giáng sinh", "lễ hội",
                     "bubble", "coconut", "candy", "gift", "present", "coin",
@@ -456,7 +478,7 @@ local function ScanGameForEvent()
     if not found then
         for _, obj in ipairs(workspace:GetDescendants()) do
             local nameLower = obj.Name:lower()
-            if nameLower:find("event") or nameLower:find("summer") or
+            if nameLower:find("event") or nameLower:find("summer") or 
                nameLower:find("halloween") or nameLower:find("christmas") or
                nameLower:find("festival") then
                 found = true
@@ -482,14 +504,14 @@ local function UpdateEventStatus()
             elseif source == "map" then
                 statusText = statusText .. " (Map)"
             end
-            EventStatusLabel:Update({ name = statusText })
+            EventStatusLabel:Set(statusText)
             if timeLeft ~= "Unknown" then
-                EventTimeLabel:Update({ name = "⏰ Time left: " .. timeLeft })
+                EventTimeLabel:Set("⏰ Time left: " .. timeLeft)
             end
         else
             EventActive = false
-            EventStatusLabel:Update({ name = "📌 Event: ❌ NONE" })
-            EventTimeLabel:Update({ name = "⏰ Time left: No event" })
+            EventStatusLabel:Set("📌 Event: ❌ NONE")
+            EventTimeLabel:Set("⏰ Time left: No event")
         end
     end)
 end
@@ -521,7 +543,7 @@ local function AutoRevive()
         end)
         pcall(function()
             humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-            task.wait(0.05)
+            wait(0.05)
             humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
         end)
         pcall(function()
@@ -529,14 +551,14 @@ local function AutoRevive()
             humanoid.PlatformStand = false
             humanoid.AutoRotate = true
         end)
-        task.wait(0.2)
+        wait(0.2)
         if humanoid.Health <= 0 then
             pcall(function() LocalPlayer:LoadCharacter() end)
         else
             SendNotification("🔔 Thông báo hồi sinh!", "👤 Đã hồi sinh thành công...", 3)
         end
         if SafeWall then
-            task.wait(0.1)
+            wait(0.1)
             local newChar = LocalPlayer.Character
             if newChar and newChar:FindFirstChild("HumanoidRootPart") then
                 newChar.HumanoidRootPart.CFrame = CFrame.new(SafeWall.Position + Vector3.new(0, 2, 0))
@@ -559,12 +581,12 @@ local function AutoJoinMap()
             local name = gui.Name or ""
             local nameLower = name:lower()
             local textLower = text:lower()
-            if textLower:find("close") or textLower:find("đóng") or
+            if textLower:find("close") or textLower:find("đóng") or 
                nameLower:find("close") or nameLower:find("đóng") or
                textLower:find("x") or text:find("✕") or text:find("×") then
                 pcall(function() gui:Fire() return true end)
             end
-            if textLower:find("join") or textLower:find("vào") or
+            if textLower:find("join") or textLower:find("vào") or 
                textLower:find("play") or textLower:find("chơi") or
                textLower:find("start") or textLower:find("bắt đầu") then
                 pcall(function() gui:Fire() return true end)
@@ -664,7 +686,7 @@ local function FarmLoop()
                 FarmConnection = nil
             end
             SendNotification("⛔ KHÔNG CÓ SỰ KIỆN!", "Không tìm thấy sự kiện trong game. Đã tự động tắt farm.", 5)
-            EventStatusLabel:Update({ name = "📌 Event: ❌ NONE" })
+            EventStatusLabel:Set("📌 Event: ❌ NONE")
         end
         return
     end
@@ -676,7 +698,7 @@ local function FarmLoop()
     CheckAndKeepOnWall()
     local items = FindEventItems()
     TotalItems = #items
-    CurrencyLabel:Update({ name = "🎯 Event Items: " .. TotalItems })
+    CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
     if TotalItems == 0 then
         if not IsAtWall then TeleportToWall() end
         FarmCooldown = tick()
@@ -707,15 +729,14 @@ local function FarmLoop()
     FarmCooldown = tick()
 end
 
--- =============================================
 -- AUTO FARM EVENT
--- =============================================
-farmTab:CreateSection({ name = "🎈 Auto Farm Event" })
-farmTab:CreateToggle({
-    name = "Auto Farm Event 🎈",
-    info = "Tự động farm vật phẩm (có tự động hồi sinh)",
-    callback = function(value)
-        AutoFarm = value[reference:12]
+local FarmEventSection = FarmTab:CreateSection("🎈 Auto Farm Event")
+FarmTab:CreateToggle({
+    Name = "Auto Farm Event 🎈",
+    Description = "Tự động farm vật phẩm (có tự động hồi sinh)",
+    CurrentValue = false,
+    Callback = function(Value)
+        AutoFarm = Value
         if AutoFarm then
             CollectedCount = 0
             IsAtWall = false
@@ -728,7 +749,7 @@ farmTab:CreateToggle({
             if not eventActive then
                 AutoFarm = false
                 SendNotification("⛔ KHÔNG CÓ SỰ KIỆN!", "Không tìm thấy sự kiện trong game. Không thể bật farm.", 5)
-                EventStatusLabel:Update({ name = "📌 Event: ❌ NONE" })
+                EventStatusLabel:Set("📌 Event: ❌ NONE")
                 return
             end
             local activeItems = GetActiveItems()
@@ -738,19 +759,19 @@ farmTab:CreateToggle({
                 return
             end
             if eventName and eventName ~= "Unknown" then
-                EventStatusLabel:Update({ name = "📌 Event: ✅ " .. string.sub(eventName, 1, 30) })
+                EventStatusLabel:Set("📌 Event: ✅ " .. string.sub(eventName, 1, 30))
             else
-                EventStatusLabel:Update({ name = "📌 Event: ✅ ACTIVE" })
+                EventStatusLabel:Set("📌 Event: ✅ ACTIVE")
             end
             if eventTime and eventTime ~= "Unknown" then
-                EventTimeLabel:Update({ name = "⏰ Time left: " .. eventTime })
+                EventTimeLabel:Set("⏰ Time left: " .. eventTime)
             end
             CurrentCurrency = GetCurrentCurrency()
-            CurrentCurrencyLabel:Update({ name = "💰 Current currency: " .. CurrentCurrency })
+            CurrentCurrencyLabel:Set("💰 Current currency: " .. CurrentCurrency)
             SendNotification("⚡ Kích hoạt farm!", "🛡️ Sự kiện đang diễn ra!", 2)
             SendNotification("❗ Tạo tường...", "🕚 Đang tạo...", 2)
             CreateSafeWall(FindSafeWallPosition())
-            task.wait(0.2)
+            wait(0.2)
             SendNotification("🛡️ Lên tường...", "🗡️ Đang teleport...", 1.5)
             TeleportToWall()
             SendNotification("✅ Thành công!", "✔️ Đã lên tường!", 1.5)
@@ -786,7 +807,7 @@ local function FarmLVLoop()
     CheckAndKeepOnWall()
     if not SafeWall then
         CreateSafeWall(FindSafeWallPosition())
-        task.wait(0.1)
+        wait(0.1)
         TeleportToWall()
     end
     local char = game.Players.LocalPlayer.Character
@@ -798,16 +819,17 @@ local function FarmLVLoop()
     end
 end
 
-farmTab:CreateSection({ name = "⭐ Auto Farm LV" })
-farmTab:CreateToggle({
-    name = "Auto Farm LV ⭐",
-    info = "Tạo tường và giữ trên tường (có tự động hồi sinh)",
-    callback = function(value)
-        FarmLV = value
+local FarmLVSection = FarmTab:CreateSection("⭐ Auto Farm LV")
+FarmTab:CreateToggle({
+    Name = "Auto Farm LV ⭐",
+    Description = "Tạo tường và giữ trên tường (có tự động hồi sinh)",
+    CurrentValue = false,
+    Callback = function(Value)
+        FarmLV = Value
         if FarmLV then
             SendNotification("⭐ Bật Farm LV!", "🔄 Đang tạo tường...", 2)
             CreateSafeWall(FindSafeWallPosition())
-            task.wait(0.2)
+            wait(0.2)
             TeleportToWall()
             SendNotification("✅ Đã lên tường!", "💡 Di chuyển tự do!", 2)
             if FarmLVConnection then FarmLVConnection:Disconnect() end
@@ -896,7 +918,7 @@ local function RescueLoop()
             local targetPos = targetChar.HumanoidRootPart.Position
             StopEmote()
             root.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0))
-            task.wait(0.2)
+            wait(0.2)
             local humanoid = char:FindFirstChild("Humanoid")
             if humanoid then
                 pcall(function()
@@ -905,7 +927,7 @@ local function RescueLoop()
                 end)
             end
             TeleportToWall()
-            task.wait(0.3)
+            wait(0.3)
             pcall(function()
                 local humanoid2 = char:FindFirstChild("Humanoid")
                 if humanoid2 then
@@ -932,12 +954,13 @@ local function RescueLoop()
     end
 end
 
-farmTab:CreateSection({ name = "🏥 Auto Rescue" })
-farmTab:CreateToggle({
-    name = "Auto Rescue 🏥",
-    info = "Tự động tìm và cứu người bị hạ gục (có tự động hồi sinh)",
-    callback = function(value)
-        AutoRescue = value
+local RescueSection = FarmTab:CreateSection("🏥 Auto Rescue")
+FarmTab:CreateToggle({
+    Name = "Auto Rescue 🏥",
+    Description = "Tự động tìm và cứu người bị hạ gục (có tự động hồi sinh)",
+    CurrentValue = false,
+    Callback = function(Value)
+        AutoRescue = Value
         if AutoRescue then
             RescuedCount = 0
             IsAtWall = false
@@ -946,7 +969,7 @@ farmTab:CreateToggle({
             IsWaitingToJoin = false
             SendNotification("🏥 Bật Auto Rescue!", "🔄 Đang tạo tường...", 2)
             CreateSafeWall(FindSafeWallPosition())
-            task.wait(0.2)
+            wait(0.2)
             TeleportToWall()
             SendNotification("✅ Sẵn sàng!", "🔍 Đang quét người bị hạ gục...", 2)
             if RescueConnection then RescueConnection:Disconnect() end
@@ -966,7 +989,7 @@ farmTab:CreateToggle({
 -- =============================================
 -- SELF-MECHANISM TAB
 -- =============================================
-selfTab:CreateSection({ name = "💀 Revive Yourself" })
+local ReviveSection = SelfTab:CreateSection("💀 Revive Yourself")
 
 local function CheckAndRevive()
     if not ReviveSelf then return end
@@ -985,11 +1008,12 @@ local function CheckAndRevive()
     end
 end
 
-selfTab:CreateToggle({
-    name = "Revive Yourself 💀",
-    info = "Tự động hồi sinh bản thân bất kỳ lúc nào",
-    callback = function(value)
-        ReviveSelf = value
+SelfTab:CreateToggle({
+    Name = "Revive Yourself 💀",
+    Description = "Tự động hồi sinh bản thân bất kỳ lúc nào",
+    CurrentValue = false,
+    Callback = function(Value)
+        ReviveSelf = Value
         if ReviveSelf then
             SendNotification("⚡ Đã kích hoạt hồi sinh bản thân...", "🤫 Có những con gà mà người chơi không biết", 3)
             if ReviveConnection then ReviveConnection:Disconnect() end
@@ -1009,7 +1033,7 @@ selfTab:CreateToggle({
 -- =============================================
 -- PLAYERS TAB
 -- =============================================
-playersTab:CreateSection({ name = "📊 FPS Counter" })
+local FPSSection = PlayersTab:CreateSection("📊 FPS Counter")
 
 local ShowFPS = false
 local FPSScreenGui = nil
@@ -1068,11 +1092,12 @@ local function CreateFPSGui()
     end)
 end
 
-playersTab:CreateToggle({
-    name = "Show FPS 📊",
-    info = "Hiển thị FPS ở góc phải trên cùng",
-    callback = function(value)
-        ShowFPS = value
+PlayersTab:CreateToggle({
+    Name = "Show FPS 📊",
+    Description = "Hiển thị FPS ở góc phải trên cùng",
+    CurrentValue = false,
+    Callback = function(Value)
+        ShowFPS = Value
         if ShowFPS then
             CreateFPSGui()
         else
@@ -1098,9 +1123,9 @@ game:GetService("RunService").Heartbeat:Connect(function()
         UpdateEventStatus()
         local items = FindEventItems()
         TotalItems = #items
-        CurrencyLabel:Update({ name = "🎯 Event Items: " .. TotalItems })
+        CurrencyLabel:Set("🎯 Event Items: " .. TotalItems)
         CurrentCurrency = GetCurrentCurrency()
-        CurrentCurrencyLabel:Update({ name = "💰 Current currency: " .. CurrentCurrency })
+        CurrentCurrencyLabel:Set("💰 Current currency: " .. CurrentCurrency)
         if AutoFarm or FarmLV or AutoRescue then
             CheckAndKeepOnWall()
         end
@@ -1112,5 +1137,4 @@ print("[Nexus Hub] Loaded successfully!")
 print("[Nexus Hub] Author: Nate & Ngọt")
 print("========================================")
 
-task.wait(0.5)
 UpdateEventStatus()
