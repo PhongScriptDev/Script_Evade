@@ -1,5 +1,28 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- =============================================
+-- LOAD RAYFIELD VỚI PCALL ĐỂ TRÁNH LỖI
+-- =============================================
+local success, Rayfield = pcall(function()
+    return loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+end)
 
+if not success or not Rayfield then
+    print("[Nexus Hub] Không thể load Rayfield! Thử lại...")
+    wait(1)
+    local success2, Rayfield2 = pcall(function()
+        return loadstring(game:HttpGet('https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/Kavo%20Ui.lua'))()
+    end)
+    if success2 and Rayfield2 then
+        Rayfield = Rayfield2
+        print("[Nexus Hub] Đã load Kavo UI thay thế")
+    else
+        print("[Nexus Hub] Không thể load UI Library!")
+        return
+    end
+end
+
+-- =============================================
+-- TẠO WINDOW (CHỈ 1 LẦN)
+-- =============================================
 local Window = Rayfield:CreateWindow({
    Name = "Nexus Hub",
    Icon = 0,
@@ -101,12 +124,14 @@ local function SendNotification(title, content, duration)
     if tick() - LastNotifyTime < 0.3 then return end
     LastNotifyTime = tick()
     pcall(function()
-        Rayfield:Notify({
-            Title = title,
-            Content = content,
-            Duration = duration,
-            Image = 0
-        })
+        if Rayfield then
+            Rayfield:Notify({
+                Title = title,
+                Content = content,
+                Duration = duration,
+                Image = 0
+            })
+        end
     end)
 end
 
@@ -890,8 +915,7 @@ local function RescueLoop()
     if state == "dead" then
         CheckAndJoinMap()
         return
-    elseif state == "downed" then
-        AutoRevive()
+    elseif state == "downed" then        AutoRevive()
         return
     elseif state == "unknown" then
         return
@@ -1133,6 +1157,5 @@ print("[Nexus Hub] Loaded successfully!")
 print("[Nexus Hub] Author: Nate & Ngọt")
 print("========================================")
 
--- Cập nhật ngay khi khởi động
 wait(0.5)
 UpdateEventStatus()
