@@ -3,67 +3,46 @@
 -- SUBTITLE: LOADING
 -- ============================================
 
--- === BIẾN TOÀN CỤ ===
-local player = game:GetService("Players").LocalPlayer
-local guiService = game:GetService("StarterGui")
-local teleportService = game:GetService("TeleportService")
-local runService = game:GetService("RunService")
+-- === KIỂM TRA VÀ TẢI WINDUI LIBRARY ===
+local Library = nil
+local loadSuccess = false
+local loadError = ""
 
--- === HÀM GỬI THÔNG BÁO ===
-local function SendNotify(title, text, duration)
-    pcall(function()
-        guiService:SetCore("SendNotification", {
-            Title = title,
-            Text = text,
-            Duration = duration or 5
-        })
+-- Thử tải từ link chính thức
+local function LoadWindUI()
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+    end)
+    return success, result
+end
+
+loadSuccess, Library = LoadWindUI()
+
+-- Nếu thất bại, thử link dự phòng
+if not loadSuccess or not Library then
+    loadSuccess, Library = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/7GrandDadPGN/VapeV4ForRoblox/main/WindUI.lua"))()
     end)
 end
 
--- === TẢI WINDUI LIBRARY ===
-local Library = nil
-local loadSuccess, loadError = pcall(function()
-    Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-end)
-
+-- Nếu vẫn thất bại, báo lỗi và dừng
 if not loadSuccess or not Library then
-    SendNotify("❌ Lỗi thất bại hoặc Sai cấu trúc!", "❗ Xin vui lòng báo admin hoặc thử lại...", 10)
-    warn("❌ LỖI TẢI WINDUI LIBRARY:")
-    warn("Lỗi: " .. tostring(loadError))
-    return
-end
-
--- === KIỂM TRA LIBRARY CÓ METHOD CreateWindow KHÔNG ===
-if not Library.CreateWindow then
-    SendNotify("❌ Lỗi thất bại hoặc Sai cấu trúc!", "❗ Library không có CreateWindow!", 10)
-    warn("❌ Library không có CreateWindow!")
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "❌ Lỗi thất bại hoặc Sai cấu trúc!",
+        Text = "❗ Xin vui lòng báo admin hoặc thử lại...",
+        Duration = 10
+    })
+    warn("❌ KHÔNG THỂ TẢI WINDUI LIBRARY!")
     return
 end
 
 -- === TẠO WINDOW ===
-local Window = nil
-local createSuccess, createError = pcall(function()
-    Window = Library:CreateWindow({
-        Title = "Nexus Hub | Make By: Nate & Ngọt",
-        SubTitle = "Loading",
-        Size = UDim2.fromOffset(600, 500),
-        Center = true
-    })
-end)
-
-if not createSuccess or not Window then
-    SendNotify("❌ Lỗi thất bại hoặc Sai cấu trúc!", "❗ Không thể tạo Window! Lỗi: " .. tostring(createError), 10)
-    warn("❌ KHÔNG THỂ TẠO WINDOW:")
-    warn("Lỗi: " .. tostring(createError))
-    return
-end
-
--- === ĐẶT THEME (NẾU HỖ TRỢ) ===
-if Library.SetTheme then
-    pcall(function()
-        Library:SetTheme("Dark")
-    end)
-end
+local Window = Library:CreateWindow({
+    Title = "Nexus Hub | Make By: Nate & Ngọt",
+    SubTitle = "Loading",
+    Size = UDim2.fromOffset(600, 500),
+    Center = true
+})
 
 -- === CẤU HÌNH ===
 local CONFIG = {
@@ -84,8 +63,8 @@ local THEMES = {
     "Crimson", "Monokai Pro", "Cotton Candy", "Mellowsi", "Rainbow"
 }
 
--- === TẠO BACKGROUND TỪ GIF (KIỂM TRA MainFrame) ===
-if CONFIG.GIF_URL ~= "none" and Window.MainFrame then
+-- === TẠO BACKGROUND TỪ GIF ===
+if CONFIG.GIF_URL ~= "none" then
     pcall(function()
         local imageLabel = Instance.new("ImageLabel")
         imageLabel.Size = UDim2.fromScale(1, 1)
@@ -105,34 +84,23 @@ if CONFIG.MUSIC_ID ~= "none" then
         sound.SoundId = "rbxassetid://" .. CONFIG.MUSIC_ID
         sound.Volume = 0.8
         sound.Looped = true
-        sound.Parent = player
+        sound.Parent = game:GetService("Players").LocalPlayer
         sound:Play()
-        print("🎵 Đang phát nhạc ID: " .. CONFIG.MUSIC_ID)
     end)
 end
 
 -- === THÔNG BÁO KHỞI ĐỘNG ===
-SendNotify("✔️ Running Script...", "Khởi động script thành công!", 5)
-
--- === KIỂM TRA WINDOW CÓ METHOD Tab KHÔNG ===
-if not Window.Tab then
-    SendNotify("❌ Lỗi", "❗ Window không có method Tab!", 5)
-    warn("❌ Window không có method Tab!")
-    return
-end
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "✔️ Running Script...",
+    Text = "Khởi động script thành công!",
+    Duration = 5
+})
 
 -- === FARM HANDMADE TAB ===
 local FarmTab = Window:Tab({
     Title = "Farm Handmade",
     Icon = "rbxassetid://6031090938"
 })
-
--- === KIỂM TRA FarmTab ===
-if not FarmTab or not FarmTab.Group then
-    SendNotify("❌ Lỗi", "❗ Không thể tạo FarmTab!", 5)
-    warn("❌ Không thể tạo FarmTab!")
-    return
-end
 
 local FarmGroup = FarmTab:Group({
     Title = "Farm Event",
@@ -154,9 +122,9 @@ local wall = nil
 local wallParts = {}
 local farmConnection = nil
 local farmLVConnection = nil
+local player = game:GetService("Players").LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart") or nil
-local lastTeleportPosition = nil
 local isTeleporting = false
 
 -- === HÀM TẠO TƯỜNG ===
@@ -214,10 +182,13 @@ function CreateWall()
     wall = wallGroup
     
     local teleportPos = playerPos + Vector3.new(0, wallHeight/2 + 1, 0)
-    lastTeleportPosition = teleportPos
     TeleportInstant(teleportPos)
     
-    SendNotify("🏗️ Tạo tường", "✅ Tạo tường thành công!", 2)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "🏗️ Tạo tường",
+        Text = "✅ Tạo tường thành công!",
+        Duration = 2
+    })
     return true
 end
 
@@ -238,7 +209,6 @@ function TeleportInstant(targetPos)
     isTeleporting = true
     local success = pcall(function()
         humanoidRootPart.CFrame = CFrame.new(targetPos)
-        lastTeleportPosition = targetPos
     end)
     isTeleporting = false
     return success
@@ -281,26 +251,27 @@ function StartFarmEvent()
     
     local items, noItems = ScanEventItems()
     if noItems then
-        SendNotify("❌ Từ chối Farm", "📭 Không có sự kiện nào đang diễn ra!", 3)
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "❌ Từ chối Farm",
+            Text = "📭 Không có sự kiện nào đang diễn ra!",
+            Duration = 3
+        })
         return
     end
     
     isFarming = true
-    SendNotify("🎯 Farm Event", "⚡ Đang khởi động Farm Event...", 2)
     CreateWall()
     
-    farmConnection = runService.Heartbeat:Connect(function()
+    farmConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not isFarming then return end
         
         if not CheckPlayerOnWall() and wall then
             local wallPos = wall:GetPrimaryPartCFrame().Position
             TeleportInstant(wallPos + Vector3.new(0, 3, 0))
-            SendNotify("🔄 Teleporting", "✅ Teleporting lại tường thành công!", 1)
         end
         
         local items, noItems = ScanEventItems()
         if noItems then
-            SendNotify("⏹️ Dừng Farm", "📭 Không còn sự kiện để farm!", 3)
             StopFarmEvent()
             return
         end
@@ -309,18 +280,15 @@ function StartFarmEvent()
             for _, item in pairs(items) do
                 if item and item.Parent then
                     local itemPos = item.Position
-                    SendNotify("🎯 Teleporting", "🎯 Teleporting đến vật phẩm sự kiện...", 1)
                     TeleportInstant(itemPos + Vector3.new(0, 2, 0))
                     wait(0.1)
                     
                     if item and item.Parent then
-                        SendNotify("⚠️ Thất bại", "❌ Nhặt vật phẩm thất bại! Teleporting thử lại...", 2)
                         wait(0.5)
                         TeleportInstant(itemPos + Vector3.new(0, 2, 0))
                         wait(0.1)
                         
                         if item and item.Parent then
-                            SendNotify("⏳ Đang chờ", "⏳ Chờ và thử lại...", 2)
                             wait(2)
                             TeleportInstant(itemPos + Vector3.new(0, 2, 0))
                             wait(0.1)
@@ -328,11 +296,8 @@ function StartFarmEvent()
                     end
                     
                     if not item or not item.Parent then
-                        local remainingItems = ScanEventItems()
-                        SendNotify("✅ Thành công", "✅ Nhặt vật phẩm thành công! Số lượng còn lại: " .. #remainingItems, 2)
                         local wallPos = wall:GetPrimaryPartCFrame().Position
                         TeleportInstant(wallPos + Vector3.new(0, 3, 0))
-                        SendNotify("🔄 Teleporting", "✅ Teleporting lại tường thành công!", 1)
                     end
                 end
             end
@@ -349,22 +314,19 @@ function StopFarmEvent()
         farmConnection = nil
     end
     if not isFarmingLV then DestroyWall() end
-    SendNotify("⏹️ Dừng Farm", "🛑 Đã dừng Farm Event!", 2)
 end
 
 -- === HÀM FARM LV ===
 function StartFarmLV()
     if isFarmingLV then return end
     isFarmingLV = true
-    SendNotify("🎯 Farm LV", "⚡ Đang khởi động Farm LV...", 2)
     CreateWall()
     
-    farmLVConnection = runService.Heartbeat:Connect(function()
+    farmLVConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not isFarmingLV then return end
         if not CheckPlayerOnWall() and wall then
             local wallPos = wall:GetPrimaryPartCFrame().Position
             TeleportInstant(wallPos + Vector3.new(0, 3, 0))
-            SendNotify("🔄 Teleporting", "✅ Teleporting lại tường thành công!", 1)
         end
         wait(0.5)
     end)
@@ -378,32 +340,29 @@ function StopFarmLV()
         farmLVConnection = nil
     end
     if not isFarming then DestroyWall()
-    SendNotify("⏹️ Dừng Farm LV", "🛑 Đã dừng Farm LV!", 2)
 end
 
--- === KIỂM TRA FarmGroup CÓ Toggle KHÔNG ===
-if FarmGroup and FarmGroup.Toggle then
-    FarmGroup:Toggle({
-        Title = "Farm Event",
-        Desc = "Bật/tắt farm vật phẩm sự kiện",
-        Default = false,
-        Callback = function(state)
-            if state then pcall(StartFarmEvent) else pcall(StopFarmEvent) end
-        end
-    })
+-- === TẠO TOGGLE FARM ===
+FarmGroup:Toggle({
+    Title = "Farm Event",
+    Desc = "Bật/tắt farm vật phẩm sự kiện",
+    Default = false,
+    Callback = function(state)
+        if state then pcall(StartFarmEvent) else pcall(StopFarmEvent) end
+    end
+})
 
-    FarmGroup:Toggle({
-        Title = "Farm Lv",
-        Desc = "Bật/tắt farm level tự động",
-        Default = false,
-        Callback = function(state)
-            if state then pcall(StartFarmLV) else pcall(StopFarmLV) end
-        end
-    })
-end
+FarmGroup:Toggle({
+    Title = "Farm Lv",
+    Desc = "Bật/tắt farm level tự động",
+    Default = false,
+    Callback = function(state)
+        if state then pcall(StartFarmLV) else pcall(StopFarmLV) end
+    end
+})
 
 -- === XỬ LÝ RỜI KHỎI TƯỜNG ===
-runService.Heartbeat:Connect(function()
+game:GetService("RunService").Heartbeat:Connect(function()
     if (isFarming or isFarmingLV) and wall and not CheckPlayerOnWall() then
         local wallPos = wall:GetPrimaryPartCFrame().Position
         TeleportInstant(wallPos + Vector3.new(0, 3, 0))
@@ -426,13 +385,10 @@ local AntiTab = Window:Tab({
     Icon = "rbxassetid://6031090994"
 })
 
-local AntiGroup = nil
-if AntiTab and AntiTab.Group then
-    AntiGroup = AntiTab:Group({
-        Title = "Anti Features",
-        Side = "left"
-    })
-end
+local AntiGroup = AntiTab:Group({
+    Title = "Anti Features",
+    Side = "left"
+})
 
 -- === BIẾN ANTI ===
 local isAntiAFK = false
@@ -459,7 +415,6 @@ function PlaySound(soundId, volume)
         sound.Volume = volume or 0.8
         sound.Parent = player
         sound:Play()
-        SendNotify("🔊 Sound", "🎵 Đang phát âm thanh!", 2)
         game:GetService("Debris"):AddItem(sound, 10)
     end)
 end
@@ -468,9 +423,8 @@ end
 function StartAntiAFK()
     if isAntiAFK then return end
     isAntiAFK = true
-    SendNotify("🛡️ Anti-AFK", "✅ Đã bật chống AFK (20 phút)!", 2)
     
-    antiAFKConnection = runService.Heartbeat:Connect(function()
+    antiAFKConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not isAntiAFK then return end
         local timeSinceLastMove = tick() - lastMoveTime
         if timeSinceLastMove > 600 and character and humanoidRootPart then
@@ -493,12 +447,11 @@ end
 function StartAutoRejoined()
     if isAutoRejoined then return end
     isAutoRejoined = true
-    SendNotify("🔄 Auto Rejoined", "✅ Đã bật tự động tham gia lại!", 2)
     
-    runService.Heartbeat:Connect(function()
+    game:GetService("RunService").Heartbeat:Connect(function()
         if not isAutoRejoined then return end
         if not game:IsLoaded() or not player then
-            teleportService:Teleport(game.PlaceId)
+            game:GetService("TeleportService"):Teleport(game.PlaceId)
         end
     end)
 end
@@ -511,10 +464,9 @@ end
 function StartAntiBanned()
     if isAntiBanned then return end
     isAntiBanned = true
-    SendNotify("🛡️ Anti-Banned", "✅ Đã bật chống banned từ server!", 2)
     
     local bannedDetected = false
-    runService.Heartbeat:Connect(function()
+    game:GetService("RunService").Heartbeat:Connect(function()
         if not isAntiBanned then return end
         local success = pcall(function()
             if not player then return end
@@ -522,7 +474,7 @@ function StartAntiBanned()
         end)
         if not success and not bannedDetected then
             bannedDetected = true
-            teleportService:Teleport(game.PlaceId)
+            game:GetService("TeleportService"):Teleport(game.PlaceId)
         end
     end)
 end
@@ -535,9 +487,8 @@ end
 function StartAntiError()
     if isAntiError then return end
     isAntiError = true
-    SendNotify("🛡️ Anti-Error Code", "✅ Đã bật chống tất cả mã lỗi!", 2)
     
-    errorCheckConnection = runService.Heartbeat:Connect(function()
+    errorCheckConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not isAntiError then return end
         local success = pcall(function()
             if game:GetService("CoreGui"):FindFirstChild("RobloxPromptGui") then
@@ -550,7 +501,7 @@ function StartAntiError()
             end
         end)
         if not success and isAutoRejoined then
-            teleportService:Teleport(game.PlaceId)
+            game:GetService("TeleportService"):Teleport(game.PlaceId)
         end
     end)
 end
@@ -567,9 +518,8 @@ end
 function StartSoundDead()
     if isSoundDead then return end
     isSoundDead = true
-    SendNotify("🔊 Sound Dead/Defeated", "✅ Đã bật phát hiện chết/hạ gục!", 2)
     
-    soundDeadConnection = runService.Heartbeat:Connect(function()
+    soundDeadConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not isSoundDead then return end
         pcall(function()
             if character and character:FindFirstChild("Humanoid") then
@@ -577,7 +527,6 @@ function StartSoundDead()
                 local currentHealth = humanoid.Health
                 if currentHealth <= 0 and not isDead then
                     isDead = true
-                    SendNotify("💀 Đã chết/Hạ gục", "🔊 Đang phát âm thanh Dead/Defeated!", 3)
                     if CONFIG.SOUND_DEAD_ID ~= "none" then
                         PlaySound(CONFIG.SOUND_DEAD_ID, 0.8)
                     end
@@ -601,9 +550,8 @@ end
 function StartSoundWin()
     if isSoundWin then return end
     isSoundWin = true
-    SendNotify("🔊 Sound Survive/Win", "✅ Đã bật phát hiện thắng/sống sót!", 2)
     
-    soundWinConnection = runService.Heartbeat:Connect(function()
+    soundWinConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not isSoundWin then return end
         pcall(function()
             if character and character:FindFirstChild("Humanoid") then
@@ -612,7 +560,6 @@ function StartSoundWin()
                 if isDead and currentHealth > 0 then
                     isDead = false
                     isWin = true
-                    SendNotify("🎉 Thắng/Sống sót", "🔊 Đang phát âm thanh Survive/Win!", 3)
                     if CONFIG.SOUND_WIN_ID ~= "none" then
                         PlaySound(CONFIG.SOUND_WIN_ID, 0.8)
                     end
@@ -622,7 +569,6 @@ function StartSoundWin()
                 local gameState = game:GetService("Workspace"):FindFirstChild("GameState")
                 if gameState and gameState.Value == "Win" and not isWin then
                     isWin = true
-                    SendNotify("🎉 Thắng vòng", "🔊 Đang phát âm thanh Win!", 3)
                     if CONFIG.SOUND_WIN_ID ~= "none" then
                         PlaySound(CONFIG.SOUND_WIN_ID, 0.8)
                     end
@@ -642,76 +588,69 @@ function StopSoundWin()
     end
 end
 
--- === KIỂM TRA AntiGroup TRƯỚC KHI TẠO TOGGLE ===
-if AntiGroup and AntiGroup.Toggle then
-    AntiGroup:Toggle({
-        Title = "Anti-AFK",
-        Desc = "Chống mã lỗi 20 phút",
-        Default = false,
-        Callback = function(state)
-            if state then pcall(StartAntiAFK) else pcall(StopAntiAFK) end
-        end
-    })
+-- === TẠO TOGGLE ANTI ===
+AntiGroup:Toggle({
+    Title = "Anti-AFK",
+    Desc = "Chống mã lỗi 20 phút",
+    Default = false,
+    Callback = function(state)
+        if state then pcall(StartAntiAFK) else pcall(StopAntiAFK) end
+    end
+})
 
-    AntiGroup:Toggle({
-        Title = "Auto Rejoined",
-        Desc = "Tự động tham gia lại nếu gặp mã lỗi",
-        Default = false,
-        Callback = function(state)
-            if state then pcall(StartAutoRejoined) else pcall(StopAutoRejoined) end
-        end
-    })
+AntiGroup:Toggle({
+    Title = "Auto Rejoined",
+    Desc = "Tự động tham gia lại nếu gặp mã lỗi",
+    Default = false,
+    Callback = function(state)
+        if state then pcall(StartAutoRejoined) else pcall(StopAutoRejoined) end
+    end
+})
 
-    AntiGroup:Toggle({
-        Title = "Anti-Banned",
-        Desc = "Chống banned từ server",
-        Default = false,
-        Callback = function(state)
-            if state then pcall(StartAntiBanned) else pcall(StopAntiBanned) end
-        end
-    })
+AntiGroup:Toggle({
+    Title = "Anti-Banned",
+    Desc = "Chống banned từ server",
+    Default = false,
+    Callback = function(state)
+        if state then pcall(StartAntiBanned) else pcall(StopAntiBanned) end
+    end
+})
 
-    AntiGroup:Toggle({
-        Title = "Anti-Error code",
-        Desc = "Chống tất cả mã lỗi từ Roblox, Server và Admin",
-        Default = false,
-        Callback = function(state)
-            if state then pcall(StartAntiError) else pcall(StopAntiError) end
-        end
-    })
+AntiGroup:Toggle({
+    Title = "Anti-Error code",
+    Desc = "Chống tất cả mã lỗi từ Roblox, Server và Admin",
+    Default = false,
+    Callback = function(state)
+        if state then pcall(StartAntiError) else pcall(StopAntiError) end
+    end
+})
 
-    AntiGroup:Toggle({
-        Title = "Sound Dead/Defeated",
-        Desc = "Tự động phát nhạc khi chết hoặc bị hạ gục bởi Next Bot",
-        Default = false,
-        Callback = function(state)
-            if state then pcall(StartSoundDead) else pcall(StopSoundDead) end
-        end
-    })
+AntiGroup:Toggle({
+    Title = "Sound Dead/Defeated",
+    Desc = "Tự động phát nhạc khi chết hoặc bị hạ gục bởi Next Bot",
+    Default = false,
+    Callback = function(state)
+        if state then pcall(StartSoundDead) else pcall(StopSoundDead) end
+    end
+})
 
-    AntiGroup:Toggle({
-        Title = "Sound Survive/Win",
-        Desc = "Tự động phát nhạc khi thắng hoặc được hồi sinh",
-        Default = false,
-        Callback = function(state)
-            if state then pcall(StartSoundWin) else pcall(StopSoundWin) end
-        end
-    })
+AntiGroup:Toggle({
+    Title = "Sound Survive/Win",
+    Desc = "Tự động phát nhạc khi thắng hoặc được hồi sinh",
+    Default = false,
+    Callback = function(state)
+        if state then pcall(StartSoundWin) else pcall(StopSoundWin) end
+    end
+})
 
-    AntiGroup:Toggle({
-        Title = "Auto Start the script",
-        Desc = "Tự động khởi động lại script nếu bị kick hoặc mã lỗi",
-        Default = false,
-        Callback = function(state)
-            isAutoStart = state
-            if state then
-                SendNotify("🔄 Auto Start", "✅ Đã bật tự động khởi động lại script!", 2)
-            else
-                SendNotify("🔄 Auto Start", "⏹️ Đã tắt tự động khởi động lại script!", 2)
-            end
-        end
-    })
-end
+AntiGroup:Toggle({
+    Title = "Auto Start the script",
+    Desc = "Tự động khởi động lại script nếu bị kick hoặc mã lỗi",
+    Default = false,
+    Callback = function(state)
+        isAutoStart = state
+    end
+})
 
 -- === TAB SETTINGS ===
 local SettingsTab = Window:Tab({
@@ -719,99 +658,70 @@ local SettingsTab = Window:Tab({
     Icon = "rbxassetid://6031090994"
 })
 
-local SettingsGroup = nil
-if SettingsTab and SettingsTab.Group then
-    SettingsGroup = SettingsTab:Group({
-        Title = "Theme Settings",
-        Side = "left"
-    })
-end
+local SettingsGroup = SettingsTab:Group({
+    Title = "Theme Settings",
+    Side = "left"
+})
 
 -- === DROPDOWN CHỌN THEME ===
 local selectedTheme = "Dark"
-if SettingsGroup and SettingsGroup.Dropdown then
-    SettingsGroup:Dropdown({
-        Title = "Chọn Theme",
-        Desc = "Chọn theme cho WindUI Library (16 themes có sẵn)",
-        Default = "Dark",
-        Options = THEMES,
-        Callback = function(option)
-            selectedTheme = option
-            print("✅ Đã chọn theme: " .. option)
-        end
-    })
-end
+SettingsGroup:Dropdown({
+    Title = "Chọn Theme",
+    Desc = "Chọn theme cho WindUI Library (16 themes có sẵn)",
+    Default = "Dark",
+    Options = THEMES,
+    Callback = function(option)
+        selectedTheme = option
+    end
+})
 
 -- === BUTTON ĐẶT THEME ===
-if SettingsGroup and SettingsGroup.Button then
-    SettingsGroup:Button({
-        Title = "Đặt Theme",
-        Desc = "Áp dụng theme đã chọn và khởi động lại script",
-        Callback = function()
-            if not selectedTheme or selectedTheme == "" then
-                SendNotify("❌ Lỗi", "❗ Vui lòng chọn theme trước khi đặt!", 3)
-                return
-            end
-            
-            SendNotify("🎨 Đặt Theme", "⚡ Đang áp dụng theme: " .. selectedTheme .. "...", 3)
-            
-            CONFIG.CURRENT_THEME = selectedTheme
-            
-            if Window and Window.MainFrame then
-                Window.MainFrame:Destroy()
-            end
-            
-            wait(1)
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
+SettingsGroup:Button({
+    Title = "Đặt Theme",
+    Desc = "Áp dụng theme đã chọn và khởi động lại script",
+    Callback = function()
+        if not selectedTheme or selectedTheme == "" then
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "❌ Lỗi",
+                Text = "❗ Vui lòng chọn theme trước khi đặt!",
+                Duration = 3
+            })
+            return
         end
-    })
-end
+        
+        CONFIG.CURRENT_THEME = selectedTheme
+        
+        if Window and Window.MainFrame then
+            Window.MainFrame:Destroy()
+        end
+        
+        wait(1)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
+    end
+})
 
 -- === BUTTON RESTART SCRIPT ===
-if SettingsGroup and SettingsGroup.Button then
-    SettingsGroup:Button({
-        Title = "Restart the script",
-        Desc = "Khởi động lại toàn bộ script",
-        Callback = function()
-            SendNotify("🔄 Restart", "⚡ Đang khởi động lại script...", 3)
-            
-            if Window and Window.MainFrame then
-                Window.MainFrame:Destroy()
-            end
-            
-            wait(1)
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
+SettingsGroup:Button({
+    Title = "Restart the script",
+    Desc = "Khởi động lại toàn bộ script",
+    Callback = function()
+        if Window and Window.MainFrame then
+            Window.MainFrame:Destroy()
         end
-    })
-end
+        wait(1)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
+    end
+})
 
 -- === BUTTON DESTROY UI ===
-if SettingsGroup and SettingsGroup.Button then
-    SettingsGroup:Button({
-        Title = "Destroy the UI",
-        Desc = "Xóa UI mà không khởi động lại",
-        Callback = function()
-            SendNotify("🗑️ Destroy UI", "🔄 Đang xóa UI...", 2)
-            
-            if Window and Window.MainFrame then
-                Window.MainFrame:Destroy()
-                SendNotify("✅ Destroy UI", "✅ Đã xóa UI thành công!", 2)
-            end
+SettingsGroup:Button({
+    Title = "Destroy the UI",
+    Desc = "Xóa UI mà không khởi động lại",
+    Callback = function()
+        if Window and Window.MainFrame then
+            Window.MainFrame:Destroy()
         end
-    })
-end
-
--- === PHÁT HIỆN KICK VÀ TỰ ĐỘNG KHỞI ĐỘNG ===
-if isAutoStart then
-    player:GetPropertyChangedSignal("Parent"):Connect(function()
-        if not player.Parent and isAutoStart then
-            SendNotify("🔄 Auto Start", "⚡ Phát hiện bị kick! Đang khởi động lại script...", 3)
-            wait(2)
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
-        end
-    end)
-end
+    end
+})
 
 print("✅ Nexus Hub đã tải thành công!")
-print("📋 Theme hiện tại: " .. CONFIG.CURRENT_THEME)
-print("🎨 Hỗ trợ " .. #THEMES .. " built-in themes của WindUI")
