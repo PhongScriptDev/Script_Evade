@@ -112,13 +112,13 @@ end
 
 -- === CẤU HÌNH THEME ===
 local CONFIG = {
-    VIDEO_ID = "1818613964",
-    IMAGE_ID = "6031090938",
-    MUSIC_ID = "1837868719",
+    VIDEO_ID = "none",
+    IMAGE_ID = "none",
+    MUSIC_ID = "108531350726198",
     GOOGLE_DRIVE_URL = "none",
-    GIF_URL = "none",
-    SOUND_DEAD_ID = "1840861079",
-    SOUND_WIN_ID = "1840861080"
+    GIF_URL = "https://media.tenor.com/FHTOu1fN6DcAAAAM/angry-anime.gif",
+    SOUND_DEAD_ID = "1357900029",
+    SOUND_WIN_ID = "113326842510307"
 }
 
 -- === LẤY DỮ LIỆU TỪ VIDEO ===
