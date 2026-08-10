@@ -3,84 +3,10 @@
 -- SUBTITLE: LOADING
 -- ============================================
 
--- === KIỂM TRA VÀ TẢI LIBRARY ===
-local Library = nil
-local loadSuccess, loadError = pcall(function()
-    Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/UI-Libraries/main/WindUI.lua"))()
-end)
+-- === TẢI WINDUI LIBRARY (LINK CHÍNH XÁC TỪ TRANG CHỦ) ===
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 
-if not loadSuccess or not Library then
-    -- Thông báo lỗi giống Roblox
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "❌ Thất bại hoặc lỗi khởi động!",
-        Text = "📌 Xin vui lòng báo admin để fix hoặc thử lại lần nữa nhé!",
-        Duration = 10,
-        Icon = "rbxassetid://6031090994"
-    })
-    
-    -- In lỗi ra console
-    warn("❌ Không thể tải WindUI Library!")
-    warn("Lỗi: " .. tostring(loadError))
-    
-    -- Tạo UI fallback đơn giản nếu không tải được Library
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "NexusHubFallback"
-    ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    
-    local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(0, 400, 0, 300)
-    Frame.Position = UDim2.new(0.5, -200, 0.5, -150)
-    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    Frame.BorderSizePixel = 0
-    Frame.Parent = ScreenGui
-    
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 10)
-    Corner.Parent = Frame
-    
-    local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, 0, 0, 50)
-    Title.Position = UDim2.new(0, 0, 0, 10)
-    Title.Text = "❌ Lỗi khởi động"
-    Title.TextColor3 = Color3.fromRGB(255, 100, 100)
-    Title.TextSize = 24
-    Title.TextScaled = true
-    Title.BackgroundTransparency = 1
-    Title.Parent = Frame
-    
-    local Desc = Instance.new("TextLabel")
-    Desc.Size = UDim2.new(1, -20, 0, 80)
-    Desc.Position = UDim2.new(0, 10, 0, 70)
-    Desc.Text = "📌 Không thể tải WindUI Library!\nVui lòng báo admin để fix\nhoặc thử lại lần nữa nhé!"
-    Desc.TextColor3 = Color3.fromRGB(200, 200, 200)
-    Desc.TextSize = 16
-    Desc.TextWrapped = true
-    Desc.BackgroundTransparency = 1
-    Desc.Parent = Frame
-    
-    local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(0, 150, 0, 40)
-    Button.Position = UDim2.new(0.5, -75, 1, -60)
-    Button.Text = "🔄 Thử lại"
-    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-    Button.BorderSizePixel = 0
-    Button.Parent = Frame
-    
-    local BtnCorner = Instance.new("UICorner")
-    BtnCorner.CornerRadius = UDim.new(0, 5)
-    BtnCorner.Parent = Button
-    
-    Button.MouseButton1Click:Connect(function()
-        -- Reload script
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
-        ScreenGui:Destroy()
-    end)
-    
-    return -- Dừng script
-end
-
--- === THÔNG BÁO KHỞI ĐỘNG THÀNH CÔNG ===
+-- === THÔNG BÁO KHỞI ĐỘNG ===
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "✔️ Running Script...",
     Text = "Khởi động script thành công!",
@@ -89,26 +15,12 @@ game:GetService("StarterGui"):SetCore("SendNotification", {
 })
 
 -- === TẠO WINDOW ===
-local Window = nil
-local createSuccess, createError = pcall(function()
-    Window = Library:CreateWindow({
-        Title = "Nexus Hub | Make By: Nate & Ngọt",
-        SubTitle = "Loading",
-        Size = UDim2.fromOffset(600, 500),
-        Center = true
-    })
-end)
-
-if not createSuccess or not Window then
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "❌ Thất bại hoặc lỗi khởi động!",
-        Text = "📌 Xin vui lòng báo admin để fix hoặc thử lại lần nữa nhé!",
-        Duration = 10,
-        Icon = "rbxassetid://6031090994"
-    })
-    warn("❌ Không thể tạo cửa sổ! Lỗi: " .. tostring(createError))
-    return
-end
+local Window = Library:CreateWindow({
+    Title = "Nexus Hub | Make By: Nate & Ngọt",
+    SubTitle = "Loading",
+    Size = UDim2.fromOffset(600, 500),
+    Center = true
+})
 
 -- === CẤU HÌNH THEME ===
 local CONFIG = {
