@@ -8,15 +8,16 @@ local player = game:GetService("Players").LocalPlayer
 local guiService = game:GetService("StarterGui")
 local teleportService = game:GetService("TeleportService")
 local runService = game:GetService("RunService")
-local httpService = game:GetService("HttpService")
 
 -- === HÀM GỬI THÔNG BÁO ===
 local function SendNotify(title, text, duration)
-    guiService:SetCore("SendNotification", {
-        Title = title,
-        Text = text,
-        Duration = duration or 5
-    })
+    pcall(function()
+        guiService:SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = duration or 5
+        })
+    end)
 end
 
 -- === TẢI WINDUI LIBRARY ===
@@ -32,14 +33,37 @@ if not loadSuccess or not Library then
     return
 end
 
+-- === KIỂM TRA LIBRARY CÓ METHOD CreateWindow KHÔNG ===
+if not Library.CreateWindow then
+    SendNotify("❌ Lỗi thất bại hoặc Sai cấu trúc!", "❗ Library không có CreateWindow!", 10)
+    warn("❌ Library không có CreateWindow!")
+    return
+end
+
 -- === TẠO WINDOW ===
-local Window = Library:CreateWindow({
-    Title = "Nexus Hub | Make By: Nate & Ngọt",
-    SubTitle = "Loading",
-    Size = UDim2.fromOffset(600, 500),
-    Center = true,
-    Theme = "Dark"
-})
+local Window = nil
+local createSuccess, createError = pcall(function()
+    Window = Library:CreateWindow({
+        Title = "Nexus Hub | Make By: Nate & Ngọt",
+        SubTitle = "Loading",
+        Size = UDim2.fromOffset(600, 500),
+        Center = true
+    })
+end)
+
+if not createSuccess or not Window then
+    SendNotify("❌ Lỗi thất bại hoặc Sai cấu trúc!", "❗ Không thể tạo Window! Lỗi: " .. tostring(createError), 10)
+    warn("❌ KHÔNG THỂ TẠO WINDOW:")
+    warn("Lỗi: " .. tostring(createError))
+    return
+end
+
+-- === ĐẶT THEME (NẾU HỖ TRỢ) ===
+if Library.SetTheme then
+    pcall(function()
+        Library:SetTheme("Dark")
+    end)
+end
 
 -- === CẤU HÌNH ===
 local CONFIG = {
@@ -53,28 +77,15 @@ local CONFIG = {
     CURRENT_THEME = "Dark"
 }
 
--- === DANH SÁCH TẤT CẢ BUILT-IN THEMES (THEO TÀI LIỆU WINDUI) ===
+-- === DANH SÁCH TẤT CẢ BUILT-IN THEMES ===
 local THEMES = {
-    "Dark",
-    "Light",
-    "Rose",
-    "Plant",
-    "Red",
-    "Indigo",
-    "Sky",
-    "Violet",
-    "Amber",
-    "Emerald",
-    "Midnight",
-    "Crimson",
-    "Monokai Pro",
-    "Cotton Candy",
-    "Mellowsi",
-    "Rainbow"
+    "Dark", "Light", "Rose", "Plant", "Red", "Indigo",
+    "Sky", "Violet", "Amber", "Emerald", "Midnight",
+    "Crimson", "Monokai Pro", "Cotton Candy", "Mellowsi", "Rainbow"
 }
 
--- === TẠO BACKGROUND TỪ GIF ===
-if CONFIG.GIF_URL ~= "none" then
+-- === TẠO BACKGROUND TỪ GIF (KIỂM TRA MainFrame) ===
+if CONFIG.GIF_URL ~= "none" and Window.MainFrame then
     pcall(function()
         local imageLabel = Instance.new("ImageLabel")
         imageLabel.Size = UDim2.fromScale(1, 1)
@@ -103,11 +114,25 @@ end
 -- === THÔNG BÁO KHỞI ĐỘNG ===
 SendNotify("✔️ Running Script...", "Khởi động script thành công!", 5)
 
+-- === KIỂM TRA WINDOW CÓ METHOD Tab KHÔNG ===
+if not Window.Tab then
+    SendNotify("❌ Lỗi", "❗ Window không có method Tab!", 5)
+    warn("❌ Window không có method Tab!")
+    return
+end
+
 -- === FARM HANDMADE TAB ===
 local FarmTab = Window:Tab({
     Title = "Farm Handmade",
     Icon = "rbxassetid://6031090938"
 })
+
+-- === KIỂM TRA FarmTab ===
+if not FarmTab or not FarmTab.Group then
+    SendNotify("❌ Lỗi", "❗ Không thể tạo FarmTab!", 5)
+    warn("❌ Không thể tạo FarmTab!")
+    return
+end
 
 local FarmGroup = FarmTab:Group({
     Title = "Farm Event",
@@ -116,26 +141,10 @@ local FarmGroup = FarmTab:Group({
 
 -- === DANH SÁCH VẬT PHẨM ===
 local EventItems = {
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "none",
-    "Bubble",
-    "none",
-    "none"
+    "none", "none", "none", "none", "none",
+    "none", "none", "none", "none", "none",
+    "none", "none", "none", "none", "none",
+    "none", "none", "Bubble", "none", "none"
 }
 
 -- === BIẾN FARM ===
@@ -372,25 +381,26 @@ function StopFarmLV()
     SendNotify("⏹️ Dừng Farm LV", "🛑 Đã dừng Farm LV!", 2)
 end
 
--- === TẠO TOGGLE FARM EVENT ===
-FarmGroup:Toggle({
-    Title = "Farm Event",
-    Desc = "Bật/tắt farm vật phẩm sự kiện",
-    Default = false,
-    Callback = function(state)
-        if state then pcall(StartFarmEvent) else pcall(StopFarmEvent) end
-    end
-})
+-- === KIỂM TRA FarmGroup CÓ Toggle KHÔNG ===
+if FarmGroup and FarmGroup.Toggle then
+    FarmGroup:Toggle({
+        Title = "Farm Event",
+        Desc = "Bật/tắt farm vật phẩm sự kiện",
+        Default = false,
+        Callback = function(state)
+            if state then pcall(StartFarmEvent) else pcall(StopFarmEvent) end
+        end
+    })
 
--- === TẠO TOGGLE FARM LV ===
-FarmGroup:Toggle({
-    Title = "Farm Lv",
-    Desc = "Bật/tắt farm level tự động",
-    Default = false,
-    Callback = function(state)
-        if state then pcall(StartFarmLV) else pcall(StopFarmLV) end
-    end
-})
+    FarmGroup:Toggle({
+        Title = "Farm Lv",
+        Desc = "Bật/tắt farm level tự động",
+        Default = false,
+        Callback = function(state)
+            if state then pcall(StartFarmLV) else pcall(StopFarmLV) end
+        end
+    })
+end
 
 -- === XỬ LÝ RỜI KHỎI TƯỜNG ===
 runService.Heartbeat:Connect(function()
@@ -416,10 +426,13 @@ local AntiTab = Window:Tab({
     Icon = "rbxassetid://6031090994"
 })
 
-local AntiGroup = AntiTab:Group({
-    Title = "Anti Features",
-    Side = "left"
-})
+local AntiGroup = nil
+if AntiTab and AntiTab.Group then
+    AntiGroup = AntiTab:Group({
+        Title = "Anti Features",
+        Side = "left"
+    })
+end
 
 -- === BIẾN ANTI ===
 local isAntiAFK = false
@@ -629,80 +642,76 @@ function StopSoundWin()
     end
 end
 
--- === TẠO TOGGLE ANTI-AFK ===
-AntiGroup:Toggle({
-    Title = "Anti-AFK",
-    Desc = "Chống mã lỗi 20 phút",
-    Default = false,
-    Callback = function(state)
-        if state then pcall(StartAntiAFK) else pcall(StopAntiAFK) end
-    end
-})
-
--- === TẠO TOGGLE AUTO REJOINED ===
-AntiGroup:Toggle({
-    Title = "Auto Rejoined",
-    Desc = "Tự động tham gia lại nếu gặp mã lỗi",
-    Default = false,
-    Callback = function(state)
-        if state then pcall(StartAutoRejoined) else pcall(StopAutoRejoined) end
-    end
-})
-
--- === TẠO TOGGLE ANTI-BANNED ===
-AntiGroup:Toggle({
-    Title = "Anti-Banned",
-    Desc = "Chống banned từ server",
-    Default = false,
-    Callback = function(state)
-        if state then pcall(StartAntiBanned) else pcall(StopAntiBanned) end
-    end
-})
-
--- === TẠO TOGGLE ANTI-ERROR ===
-AntiGroup:Toggle({
-    Title = "Anti-Error code",
-    Desc = "Chống tất cả mã lỗi từ Roblox, Server và Admin",
-    Default = false,
-    Callback = function(state)
-        if state then pcall(StartAntiError) else pcall(StopAntiError) end
-    end
-})
-
--- === TẠO TOGGLE SOUND DEAD ===
-AntiGroup:Toggle({
-    Title = "Sound Dead/Defeated",
-    Desc = "Tự động phát nhạc khi chết hoặc bị hạ gục bởi Next Bot",
-    Default = false,
-    Callback = function(state)
-        if state then pcall(StartSoundDead) else pcall(StopSoundDead) end
-    end
-})
-
--- === TẠO TOGGLE SOUND WIN ===
-AntiGroup:Toggle({
-    Title = "Sound Survive/Win",
-    Desc = "Tự động phát nhạc khi thắng hoặc được hồi sinh",
-    Default = false,
-    Callback = function(state)
-        if state then pcall(StartSoundWin) else pcall(StopSoundWin) end
-    end
-})
-
--- === TẠO TOGGLE AUTO START ===
-AntiGroup:Toggle({
-    Title = "Auto Start the script",
-    Desc = "Tự động khởi động lại script nếu bị kick hoặc mã lỗi",
-    Default = false,
-    Callback = function(state)
-        isAutoStart = state
-        if state then
-            SendNotify("🔄 Auto Start", "✅ Đã bật tự động khởi động lại script!", 2)
-        else
-            SendNotify("🔄 Auto Start", "⏹️ Đã tắt tự động khởi động lại script!", 2)
+-- === KIỂM TRA AntiGroup TRƯỚC KHI TẠO TOGGLE ===
+if AntiGroup and AntiGroup.Toggle then
+    AntiGroup:Toggle({
+        Title = "Anti-AFK",
+        Desc = "Chống mã lỗi 20 phút",
+        Default = false,
+        Callback = function(state)
+            if state then pcall(StartAntiAFK) else pcall(StopAntiAFK) end
         end
-    end
-})
+    })
+
+    AntiGroup:Toggle({
+        Title = "Auto Rejoined",
+        Desc = "Tự động tham gia lại nếu gặp mã lỗi",
+        Default = false,
+        Callback = function(state)
+            if state then pcall(StartAutoRejoined) else pcall(StopAutoRejoined) end
+        end
+    })
+
+    AntiGroup:Toggle({
+        Title = "Anti-Banned",
+        Desc = "Chống banned từ server",
+        Default = false,
+        Callback = function(state)
+            if state then pcall(StartAntiBanned) else pcall(StopAntiBanned) end
+        end
+    })
+
+    AntiGroup:Toggle({
+        Title = "Anti-Error code",
+        Desc = "Chống tất cả mã lỗi từ Roblox, Server và Admin",
+        Default = false,
+        Callback = function(state)
+            if state then pcall(StartAntiError) else pcall(StopAntiError) end
+        end
+    })
+
+    AntiGroup:Toggle({
+        Title = "Sound Dead/Defeated",
+        Desc = "Tự động phát nhạc khi chết hoặc bị hạ gục bởi Next Bot",
+        Default = false,
+        Callback = function(state)
+            if state then pcall(StartSoundDead) else pcall(StopSoundDead) end
+        end
+    })
+
+    AntiGroup:Toggle({
+        Title = "Sound Survive/Win",
+        Desc = "Tự động phát nhạc khi thắng hoặc được hồi sinh",
+        Default = false,
+        Callback = function(state)
+            if state then pcall(StartSoundWin) else pcall(StopSoundWin) end
+        end
+    })
+
+    AntiGroup:Toggle({
+        Title = "Auto Start the script",
+        Desc = "Tự động khởi động lại script nếu bị kick hoặc mã lỗi",
+        Default = false,
+        Callback = function(state)
+            isAutoStart = state
+            if state then
+                SendNotify("🔄 Auto Start", "✅ Đã bật tự động khởi động lại script!", 2)
+            else
+                SendNotify("🔄 Auto Start", "⏹️ Đã tắt tự động khởi động lại script!", 2)
+            end
+        end
+    })
+end
 
 -- === TAB SETTINGS ===
 local SettingsTab = Window:Tab({
@@ -710,79 +719,87 @@ local SettingsTab = Window:Tab({
     Icon = "rbxassetid://6031090994"
 })
 
-local SettingsGroup = SettingsTab:Group({
-    Title = "Theme Settings",
-    Side = "left"
-})
+local SettingsGroup = nil
+if SettingsTab and SettingsTab.Group then
+    SettingsGroup = SettingsTab:Group({
+        Title = "Theme Settings",
+        Side = "left"
+    })
+end
 
--- === DROPDOWN CHỌN THEME (TẤT CẢ BUILT-IN THEMES) ===
+-- === DROPDOWN CHỌN THEME ===
 local selectedTheme = "Dark"
-local themeDropdown = SettingsGroup:Dropdown({
-    Title = "Chọn Theme",
-    Desc = "Chọn theme cho WindUI Library (16 themes có sẵn)",
-    Default = "Dark",
-    Options = THEMES,
-    Callback = function(option)
-        selectedTheme = option
-        print("✅ Đã chọn theme: " .. option)
-    end
-})
+if SettingsGroup and SettingsGroup.Dropdown then
+    SettingsGroup:Dropdown({
+        Title = "Chọn Theme",
+        Desc = "Chọn theme cho WindUI Library (16 themes có sẵn)",
+        Default = "Dark",
+        Options = THEMES,
+        Callback = function(option)
+            selectedTheme = option
+            print("✅ Đã chọn theme: " .. option)
+        end
+    })
+end
 
 -- === BUTTON ĐẶT THEME ===
-SettingsGroup:Button({
-    Title = "Đặt Theme",
-    Desc = "Áp dụng theme đã chọn và khởi động lại script",
-    Callback = function()
-        if not selectedTheme or selectedTheme == "" then
-            SendNotify("❌ Lỗi", "❗ Vui lòng chọn theme trước khi đặt!", 3)
-            return
+if SettingsGroup and SettingsGroup.Button then
+    SettingsGroup:Button({
+        Title = "Đặt Theme",
+        Desc = "Áp dụng theme đã chọn và khởi động lại script",
+        Callback = function()
+            if not selectedTheme or selectedTheme == "" then
+                SendNotify("❌ Lỗi", "❗ Vui lòng chọn theme trước khi đặt!", 3)
+                return
+            end
+            
+            SendNotify("🎨 Đặt Theme", "⚡ Đang áp dụng theme: " .. selectedTheme .. "...", 3)
+            
+            CONFIG.CURRENT_THEME = selectedTheme
+            
+            if Window and Window.MainFrame then
+                Window.MainFrame:Destroy()
+            end
+            
+            wait(1)
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
         end
-        
-        SendNotify("🎨 Đặt Theme", "⚡ Đang áp dụng theme: " .. selectedTheme .. "...", 3)
-        
-        -- Lưu theme vào CONFIG
-        CONFIG.CURRENT_THEME = selectedTheme
-        
-        -- Xóa UI
-        if Window and Window.MainFrame then
-            Window.MainFrame:Destroy()
-        end
-        
-        -- Khởi động lại script với theme mới
-        wait(1)
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
-    end
-})
+    })
+end
 
 -- === BUTTON RESTART SCRIPT ===
-SettingsGroup:Button({
-    Title = "Restart the script",
-    Desc = "Khởi động lại toàn bộ script",
-    Callback = function()
-        SendNotify("🔄 Restart", "⚡ Đang khởi động lại script...", 3)
-        
-        if Window and Window.MainFrame then
-            Window.MainFrame:Destroy()
+if SettingsGroup and SettingsGroup.Button then
+    SettingsGroup:Button({
+        Title = "Restart the script",
+        Desc = "Khởi động lại toàn bộ script",
+        Callback = function()
+            SendNotify("🔄 Restart", "⚡ Đang khởi động lại script...", 3)
+            
+            if Window and Window.MainFrame then
+                Window.MainFrame:Destroy()
+            end
+            
+            wait(1)
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
         end
-        
-        wait(1)
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
-    end
-})
+    })
+end
 
 -- === BUTTON DESTROY UI ===
-SettingsGroup:Button({
-    Title = "Destroy the UI",
-    Desc = "Xóa UI mà không khởi động lại",
-    Callback = function()
-        SendNotify("🗑️ Destroy UI", "🔄 Đang xóa UI...", 2)
-        
-        if Window and Window.MainFrame then
-            Window.MainFrame:Destroy()
-            SendNotify("✅ Destroy UI", "✅ Đã xóa UI thành công!", 2)
+if SettingsGroup and SettingsGroup.Button then
+    SettingsGroup:Button({
+        Title = "Destroy the UI",
+        Desc = "Xóa UI mà không khởi động lại",
+        Callback = function()
+            SendNotify("🗑️ Destroy UI", "🔄 Đang xóa UI...", 2)
+            
+            if Window and Window.MainFrame then
+                Window.MainFrame:Destroy()
+                SendNotify("✅ Destroy UI", "✅ Đã xóa UI thành công!", 2)
+            end
         end
-    end
-})
+    })
+end
 
 -- === PHÁT HIỆN KICK VÀ TỰ ĐỘNG KHỞI ĐỘNG ===
 if isAutoStart then
