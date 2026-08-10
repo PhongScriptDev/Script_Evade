@@ -3,40 +3,10 @@
 -- SUBTITLE: LOADING
 -- ============================================
 
--- === TẢI WINDUI LIBRARY VỚI NHIỀU LINK DỰ PHÒNG ===
-local WindUI = nil
-local loadSuccess = false
+-- === TẢI WINDUI (LINK CHÍNH THỨC) ===
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
--- Các link dự phòng
-local links = {
-    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua",
-    "https://raw.githubusercontent.com/dawid-scripts/UI-Libraries/main/WindUI.lua",
-    "https://raw.githubusercontent.com/7GrandDadPGN/VapeV4ForRoblox/main/WindUI.lua"
-}
-
-for _, link in ipairs(links) do
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(link))()
-    end)
-    if success and result then
-        WindUI = result
-        loadSuccess = true
-        break
-    end
-end
-
--- Nếu vẫn thất bại, thông báo lỗi và dừng
-if not loadSuccess or not WindUI then
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "❌ Lỗi",
-        Text = "Không thể tải WindUI Library!",
-        Duration = 5
-    })
-    warn("❌ KHÔNG THỂ TẢI WINDUI LIBRARY!")
-    return
-end
-
--- === THỬ TẠO WINDOW VỚI SINH CÚ PHÁP ĐƠN GIẢN ===
+-- === TẠO WINDOW ===
 local Window = WindUI:CreateWindow({
     Title = "Nexus Hub | Make By: Nate & Ngọt",
     SubTitle = "Loading",
@@ -44,16 +14,12 @@ local Window = WindUI:CreateWindow({
     Center = true
 })
 
--- === NẾU WINDOW KHÔNG TẠO ĐƯỢC, THÔNG BÁO LỖI ===
-if not Window then
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "❌ Lỗi",
-        Text = "Không thể tạo Window!",
-        Duration = 5
-    })
-    warn("❌ KHÔNG THỂ TẠO WINDOW!")
-    return
-end
+-- === THÔNG BÁO KHỞI ĐỘNG ===
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "✔️ Running Script...",
+    Text = "Khởi động script thành công!",
+    Duration = 5
+})
 
 -- === CẤU HÌNH ===
 local CONFIG = {
@@ -64,14 +30,7 @@ local CONFIG = {
     SOUND_WIN_ID = "113326842510307"
 }
 
--- === THÔNG BÁO KHỞI ĐỘNG ===
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "✔️ Running Script...",
-    Text = "Khởi động script thành công!",
-    Duration = 5
-})
-
--- === TẠO BACKGROUND ===
+-- === BACKGROUND ===
 if CONFIG.IMAGE_ID ~= "none" then
     pcall(function()
         local imageLabel = Instance.new("ImageLabel")
