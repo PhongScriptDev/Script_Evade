@@ -3,41 +3,53 @@
 -- SUBTITLE: LOADING
 -- ============================================
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/UI-Libraries/main/WindUI.lua"))()
-local Window = Library:CreateWindow({
-    Title = "Nexus Hub | Make By: Nate & Ngọt",
-    SubTitle = "Loading",
-    Size = UDim2.fromOffset(600, 500),
-    Center = true
-})
+-- Kiểm tra và tải Library an toàn
+local Library = nil
+local loadSuccess, loadError = pcall(function()
+    Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/UI-Libraries/main/WindUI.lua"))()
+end)
+
+if not loadSuccess or not Library then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "❌ Lỗi",
+        Text = "Không thể tải WindUI Library! Vui lòng thử lại.",
+        Duration = 5
+    })
+    return
+end
+
+-- Tạo Window với xử lý lỗi
+local Window = nil
+local createSuccess, createError = pcall(function()
+    Window = Library:CreateWindow({
+        Title = "Nexus Hub | Make By: Nate & Ngọt",
+        SubTitle = "Loading",
+        Size = UDim2.fromOffset(600, 500),
+        Center = true
+    })
+end)
+
+if not createSuccess or not Window then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "❌ Lỗi",
+        Text = "Không thể tạo cửa sổ! Lỗi: " .. tostring(createError),
+        Duration = 5
+    })
+    return
+end
 
 -- === CẤU HÌNH THEME TỪ ID ROBLOX ===
 local CONFIG = {
-    -- ID Video Roblox (Nhập "none" nếu không dùng)
-    VIDEO_ID = "none",
-    
-    -- ID Hình ảnh Roblox (Nhập "none" nếu không dùng)
-    IMAGE_ID = "none",
-    
-    -- ID Nhạc Roblox (Nhập "none" nếu không dùng)
-    MUSIC_ID = "108531350726198",
-    
-    -- Raw Drive Google (Nhập "none" nếu không dùng)
+    VIDEO_ID = "1818613964",
+    IMAGE_ID = "6031090938",
+    MUSIC_ID = "1837868719",
     GOOGLE_DRIVE_URL = "none",
-    
-    -- URL GIF (Nhập "none" nếu không dùng)
-    -- Ví dụ: https://media.giphy.com/media/xxxxxxxx/giphy.gif
-    -- Hoặc raw URL từ Google Drive, Imgur, v.v.
     GIF_URL = "none",
-    
-    -- ID Nhạc cho Sound Dead/Defeated (Nhập "none" nếu không dùng)
-    SOUND_DEAD_ID = "113326842510307",
-    
-    -- ID Nhạc cho Sound Survive/Win (Nhập "none" nếu không dùng)
-    SOUND_WIN_ID = "1357900029"
+    SOUND_DEAD_ID = "1840861079",
+    SOUND_WIN_ID = "1840861080"
 }
 
--- === LẤY DỮ LIỆU TỪ VIDEO ===
+-- === LẤY DỮ LIỆU TỪ VIDEO (CÓ XỬ LÝ LỖI) ===
 local function GetVideoData(videoId)
     if videoId == "none" then return nil end
     
@@ -82,13 +94,15 @@ local googleData = GetGoogleDriveData(CONFIG.GOOGLE_DRIVE_URL)
 local function CreateImageBackground()
     if CONFIG.IMAGE_ID == "none" then return end
     
-    local imageLabel = Instance.new("ImageLabel")
-    imageLabel.Size = UDim2.fromScale(1, 1)
-    imageLabel.Image = "rbxassetid://" .. CONFIG.IMAGE_ID
-    imageLabel.BackgroundTransparency = 1
-    imageLabel.ImageTransparency = 0.3
-    imageLabel.ScaleType = Enum.ScaleType.Crop
-    imageLabel.Parent = Window.MainFrame
+    pcall(function()
+        local imageLabel = Instance.new("ImageLabel")
+        imageLabel.Size = UDim2.fromScale(1, 1)
+        imageLabel.Image = "rbxassetid://" .. CONFIG.IMAGE_ID
+        imageLabel.BackgroundTransparency = 1
+        imageLabel.ImageTransparency = 0.3
+        imageLabel.ScaleType = Enum.ScaleType.Crop
+        imageLabel.Parent = Window.MainFrame
+    end)
 end
 
 CreateImageBackground()
@@ -97,11 +111,7 @@ CreateImageBackground()
 local function CreateGIFBackground()
     if CONFIG.GIF_URL == "none" then return end
     
-    local success, gifData = pcall(function()
-        return game:HttpGet(CONFIG.GIF_URL)
-    end)
-    
-    if success then
+    pcall(function()
         local imageLabel = Instance.new("ImageLabel")
         imageLabel.Size = UDim2.fromScale(1, 1)
         imageLabel.Image = CONFIG.GIF_URL
@@ -109,12 +119,7 @@ local function CreateGIFBackground()
         imageLabel.ImageTransparency = 0.3
         imageLabel.ScaleType = Enum.ScaleType.Crop
         imageLabel.Parent = Window.MainFrame
-        
-        print("🎬 Đã tải GIF theme thành công!")
-        print("📁 URL GIF: " .. CONFIG.GIF_URL)
-    else
-        print("⚠️ Không thể tải GIF từ URL: " .. CONFIG.GIF_URL)
-    end
+    end)
 end
 
 CreateGIFBackground()
@@ -123,14 +128,14 @@ CreateGIFBackground()
 local function PlayMusic()
     if CONFIG.MUSIC_ID == "none" then return end
     
-    local sound = Instance.new("Sound")
-    sound.SoundId = "rbxassetid://" .. CONFIG.MUSIC_ID
-    sound.Volume = 0.3
-    sound.Looped = true
-    sound.Parent = game:GetService("Players").LocalPlayer
-    sound:Play()
-    
-    print("🎵 Đang phát nhạc ID: " .. CONFIG.MUSIC_ID)
+    pcall(function()
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://" .. CONFIG.MUSIC_ID
+        sound.Volume = 0.3
+        sound.Looped = true
+        sound.Parent = game:GetService("Players").LocalPlayer
+        sound:Play()
+    end)
 end
 
 PlayMusic()
@@ -152,7 +157,7 @@ local motionStyle = "Wave"
 
 function CreateMotionFromVideo()
     for _, obj in pairs(motionElements) do
-        obj:Destroy()
+        pcall(function() obj:Destroy() end)
     end
     motionElements = {}
     
@@ -161,45 +166,47 @@ function CreateMotionFromVideo()
     local numElements = 8 + math.floor(videoData.Duration / 10)
     
     for i = 1, math.min(numElements, 20) do
-        local angle = (i - 1) * (math.pi * 2 / numElements)
-        local radius = 120 + math.sin(i * 1.5) * 30
-        
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.fromOffset(25, 25)
-        frame.BackgroundColor3 = Theme.Accent
-        frame.BackgroundTransparency = 0.5
-        frame.BorderSizePixel = 0
-        frame.Position = UDim2.fromOffset(
-            300 + math.cos(angle) * radius,
-            250 + math.sin(angle) * radius
-        )
-        frame.Parent = Window.MainFrame
-        
-        local glow = Instance.new("Frame")
-        glow.Size = UDim2.fromOffset(50, 50)
-        glow.BackgroundColor3 = Theme.Glow
-        glow.BackgroundTransparency = 0.8
-        glow.BorderSizePixel = 0
-        glow.Position = UDim2.fromOffset(-12, -12)
-        glow.Parent = frame
-        
-        if videoData.Thumbnail and videoData.Thumbnail ~= "" then
-            local image = Instance.new("ImageLabel")
-            image.Size = UDim2.fromOffset(20, 20)
-            image.Image = videoData.Thumbnail
-            image.BackgroundTransparency = 1
-            image.Position = UDim2.fromOffset(2, 2)
-            image.Parent = frame
-        end
-        
-        table.insert(motionElements, {
-            Frame = frame,
-            Glow = glow,
-            Angle = angle,
-            Radius = radius,
-            Phase = i / numElements * math.pi * 2,
-            Speed = 0.5 + math.random() * 0.5
-        })
+        pcall(function()
+            local angle = (i - 1) * (math.pi * 2 / numElements)
+            local radius = 120 + math.sin(i * 1.5) * 30
+            
+            local frame = Instance.new("Frame")
+            frame.Size = UDim2.fromOffset(25, 25)
+            frame.BackgroundColor3 = Theme.Accent
+            frame.BackgroundTransparency = 0.5
+            frame.BorderSizePixel = 0
+            frame.Position = UDim2.fromOffset(
+                300 + math.cos(angle) * radius,
+                250 + math.sin(angle) * radius
+            )
+            frame.Parent = Window.MainFrame
+            
+            local glow = Instance.new("Frame")
+            glow.Size = UDim2.fromOffset(50, 50)
+            glow.BackgroundColor3 = Theme.Glow
+            glow.BackgroundTransparency = 0.8
+            glow.BorderSizePixel = 0
+            glow.Position = UDim2.fromOffset(-12, -12)
+            glow.Parent = frame
+            
+            if videoData.Thumbnail and videoData.Thumbnail ~= "" then
+                local image = Instance.new("ImageLabel")
+                image.Size = UDim2.fromOffset(20, 20)
+                image.Image = videoData.Thumbnail
+                image.BackgroundTransparency = 1
+                image.Position = UDim2.fromOffset(2, 2)
+                image.Parent = frame
+            end
+            
+            table.insert(motionElements, {
+                Frame = frame,
+                Glow = glow,
+                Angle = angle,
+                Radius = radius,
+                Phase = i / numElements * math.pi * 2,
+                Speed = 0.5 + math.random() * 0.5
+            })
+        end)
     end
 end
 
@@ -209,53 +216,55 @@ function UpdateMotion(deltaTime)
     local time = tick() * 0.4 * motionSpeed
     
     for _, obj in pairs(motionElements) do
-        local angleOffset = 0
-        local radiusOffset = 0
-        local sizeMultiplier = 1
-        local transparencyOffset = 0
-        
-        if motionStyle == "Wave" then
-            angleOffset = math.sin(time + obj.Phase) * 0.3
-            radiusOffset = math.sin(time * 0.8 + obj.Phase) * 15
-        elseif motionStyle == "Pulse" then
-            angleOffset = 0
-            radiusOffset = math.sin(time * 1.5 + obj.Phase) * 25
-            sizeMultiplier = 1 + math.sin(time * 2 + obj.Phase) * 0.3
-        elseif motionStyle == "Glow" then
-            angleOffset = math.sin(time * 0.7 + obj.Phase) * 0.2
-            radiusOffset = math.cos(time * 0.6 + obj.Phase) * 10
-            transparencyOffset = math.sin(time + obj.Phase) * 0.15
-            obj.Glow.Size = UDim2.fromOffset(
-                50 + math.sin(time + obj.Phase) * 20,
-                50 + math.sin(time + obj.Phase) * 20
+        pcall(function()
+            local angleOffset = 0
+            local radiusOffset = 0
+            local sizeMultiplier = 1
+            local transparencyOffset = 0
+            
+            if motionStyle == "Wave" then
+                angleOffset = math.sin(time + obj.Phase) * 0.3
+                radiusOffset = math.sin(time * 0.8 + obj.Phase) * 15
+            elseif motionStyle == "Pulse" then
+                angleOffset = 0
+                radiusOffset = math.sin(time * 1.5 + obj.Phase) * 25
+                sizeMultiplier = 1 + math.sin(time * 2 + obj.Phase) * 0.3
+            elseif motionStyle == "Glow" then
+                angleOffset = math.sin(time * 0.7 + obj.Phase) * 0.2
+                radiusOffset = math.cos(time * 0.6 + obj.Phase) * 10
+                transparencyOffset = math.sin(time + obj.Phase) * 0.15
+                obj.Glow.Size = UDim2.fromOffset(
+                    50 + math.sin(time + obj.Phase) * 20,
+                    50 + math.sin(time + obj.Phase) * 20
+                )
+            elseif motionStyle == "Spin" then
+                angleOffset = time * 0.2
+                radiusOffset = math.sin(time * 0.5 + obj.Phase) * 20
+            elseif motionStyle == "Bounce" then
+                angleOffset = 0
+                radiusOffset = math.abs(math.sin(time * 1.2 + obj.Phase)) * 30
+            end
+            
+            local currentAngle = obj.Angle + time * 0.2 * obj.Speed + angleOffset
+            local currentRadius = obj.Radius + radiusOffset
+            
+            obj.Frame.Position = UDim2.fromOffset(
+                300 + math.cos(currentAngle) * currentRadius,
+                250 + math.sin(currentAngle) * currentRadius
             )
-        elseif motionStyle == "Spin" then
-            angleOffset = time * 0.2
-            radiusOffset = math.sin(time * 0.5 + obj.Phase) * 20
-        elseif motionStyle == "Bounce" then
-            angleOffset = 0
-            radiusOffset = math.abs(math.sin(time * 1.2 + obj.Phase)) * 30
-        end
-        
-        local currentAngle = obj.Angle + time * 0.2 * obj.Speed + angleOffset
-        local currentRadius = obj.Radius + radiusOffset
-        
-        obj.Frame.Position = UDim2.fromOffset(
-            300 + math.cos(currentAngle) * currentRadius,
-            250 + math.sin(currentAngle) * currentRadius
-        )
-        
-        if sizeMultiplier ~= 1 then
-            local baseSize = 25
-            obj.Frame.Size = UDim2.fromOffset(baseSize * sizeMultiplier, baseSize * sizeMultiplier)
-        end
-        
-        if transparencyOffset ~= 0 then
-            obj.Frame.BackgroundTransparency = 0.5 + transparencyOffset
-            obj.Glow.BackgroundTransparency = 0.8 + transparencyOffset * 0.5
-        end
-        
-        obj.Frame.Rotation = (obj.Frame.Rotation or 0) + deltaTime * 30 * motionSpeed
+            
+            if sizeMultiplier ~= 1 then
+                local baseSize = 25
+                obj.Frame.Size = UDim2.fromOffset(baseSize * sizeMultiplier, baseSize * sizeMultiplier)
+            end
+            
+            if transparencyOffset ~= 0 then
+                obj.Frame.BackgroundTransparency = 0.5 + transparencyOffset
+                obj.Glow.BackgroundTransparency = 0.8 + transparencyOffset * 0.5
+            end
+            
+            obj.Frame.Rotation = (obj.Frame.Rotation or 0) + deltaTime * 30 * motionSpeed
+        end)
     end
 end
 
@@ -271,7 +280,7 @@ end
 function StopMotion()
     isMotionRunning = false
     for _, obj in pairs(motionElements) do
-        obj.Frame:Destroy()
+        pcall(function() obj.Frame:Destroy() end)
     end
     motionElements = {}
 end
@@ -283,33 +292,35 @@ end
 
 -- === HIỂN THỊ THÔNG TIN VIDEO ===
 if videoData then
-    local infoFrame = Instance.new("Frame")
-    infoFrame.Size = UDim2.fromOffset(200, 60)
-    infoFrame.Position = UDim2.fromOffset(200, 420)
-    infoFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    infoFrame.BackgroundTransparency = 0.5
-    infoFrame.BorderSizePixel = 0
-    infoFrame.Parent = Window.MainFrame
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.fromOffset(190, 25)
-    titleLabel.Position = UDim2.fromOffset(5, 5)
-    titleLabel.Text = videoData.Title:sub(1, 30) .. (videoData.Title:len() > 30 and "..." or "")
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.TextSize = 14
-    titleLabel.TextXAlignment = "Left"
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Parent = infoFrame
-    
-    local creatorLabel = Instance.new("TextLabel")
-    creatorLabel.Size = UDim2.fromOffset(190, 20)
-    creatorLabel.Position = UDim2.fromOffset(5, 30)
-    creatorLabel.Text = "🎨 " .. videoData.Creator
-    creatorLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
-    creatorLabel.TextSize = 12
-    creatorLabel.TextXAlignment = "Left"
-    creatorLabel.BackgroundTransparency = 1
-    creatorLabel.Parent = infoFrame
+    pcall(function()
+        local infoFrame = Instance.new("Frame")
+        infoFrame.Size = UDim2.fromOffset(200, 60)
+        infoFrame.Position = UDim2.fromOffset(200, 420)
+        infoFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+        infoFrame.BackgroundTransparency = 0.5
+        infoFrame.BorderSizePixel = 0
+        infoFrame.Parent = Window.MainFrame
+        
+        local titleLabel = Instance.new("TextLabel")
+        titleLabel.Size = UDim2.fromOffset(190, 25)
+        titleLabel.Position = UDim2.fromOffset(5, 5)
+        titleLabel.Text = videoData.Title:sub(1, 30) .. (videoData.Title:len() > 30 and "..." or "")
+        titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        titleLabel.TextSize = 14
+        titleLabel.TextXAlignment = "Left"
+        titleLabel.BackgroundTransparency = 1
+        titleLabel.Parent = infoFrame
+        
+        local creatorLabel = Instance.new("TextLabel")
+        creatorLabel.Size = UDim2.fromOffset(190, 20)
+        creatorLabel.Position = UDim2.fromOffset(5, 30)
+        creatorLabel.Text = "🎨 " .. videoData.Creator
+        creatorLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
+        creatorLabel.TextSize = 12
+        creatorLabel.TextXAlignment = "Left"
+        creatorLabel.BackgroundTransparency = 1
+        creatorLabel.Parent = infoFrame
+    end)
 end
 
 -- === THÔNG BÁO KHỞI ĐỘNG ===
@@ -363,13 +374,19 @@ local farmConnection = nil
 local farmLVConnection = nil
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart") or nil
 local lastTeleportPosition = nil
 local isTeleporting = false
 
 -- === HÀM TẠO TƯỜNG ===
 function CreateWall()
     DestroyWall()
+    
+    if not humanoidRootPart then
+        character = player.Character or player.CharacterAdded:Wait()
+        humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then return false end
+    end
     
     local wallSize = 20
     local wallHeight = 5
@@ -431,7 +448,7 @@ end
 -- === HÀM HỦY TƯỜNG ===
 function DestroyWall()
     if wall then
-        wall:Destroy()
+        pcall(function() wall:Destroy() end)
         wall = nil
         wallParts = {}
     end
@@ -440,13 +457,13 @@ end
 -- === HÀM TELEPORT TỨC THỜI ===
 function TeleportInstant(targetPos)
     if isTeleporting then return false end
+    if not humanoidRootPart then return false end
+    
     isTeleporting = true
     
-    local success, err = pcall(function()
-        if character and humanoidRootPart then
-            humanoidRootPart.CFrame = CFrame.new(targetPos)
-            lastTeleportPosition = targetPos
-        end
+    local success = pcall(function()
+        humanoidRootPart.CFrame = CFrame.new(targetPos)
+        lastTeleportPosition = targetPos
     end)
     
     isTeleporting = false
@@ -455,7 +472,7 @@ end
 
 -- === HÀM KIỂM TRA NGƯỜI CHƠI TRÊN TƯỜNG ===
 function CheckPlayerOnWall()
-    if not wall then return false end
+    if not wall or not humanoidRootPart then return false end
     local playerPos = humanoidRootPart.Position
     local wallPos = wall:GetPrimaryPartCFrame().Position
     local distance = (playerPos - wallPos).Magnitude
@@ -717,7 +734,7 @@ end)
 -- === XỬ LÝ KHI NGƯỜI CHƠI BỊ DISCONNECT ===
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
-    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
     
     if (isFarming or isFarmingLV) and wall then
         local wallPos = wall:GetPrimaryPartCFrame().Position
@@ -756,19 +773,21 @@ local isWin = false
 function PlaySound(soundId, volume)
     if soundId == "none" then return end
     
-    local sound = Instance.new("Sound")
-    sound.SoundId = "rbxassetid://" .. soundId
-    sound.Volume = volume or 0.5
-    sound.Parent = game:GetService("Players").LocalPlayer
-    sound:Play()
-    
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🔊 Sound",
-        Text = "🎵 Đang phát âm thanh!",
-        Duration = 2
-    })
-    
-    game:GetService("Debris"):AddItem(sound, 10)
+    pcall(function()
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://" .. soundId
+        sound.Volume = volume or 0.5
+        sound.Parent = game:GetService("Players").LocalPlayer
+        sound:Play()
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "🔊 Sound",
+            Text = "🎵 Đang phát âm thanh!",
+            Duration = 2
+        })
+        
+        game:GetService("Debris"):AddItem(sound, 10)
+    end)
 end
 
 -- === HÀM CHỐNG AFK (20 PHÚT) ===
@@ -776,7 +795,6 @@ function StartAntiAFK()
     if isAntiAFK then return end
     isAntiAFK = true
     
-    print("✅ Anti-AFK đã bật")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🛡️ Anti-AFK",
         Text = "✅ Đã bật chống AFK (20 phút)!",
@@ -810,7 +828,6 @@ function StopAntiAFK()
         antiAFKConnection = nil
     end
     
-    print("⏹️ Anti-AFK đã tắt")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🛡️ Anti-AFK",
         Text = "⏹️ Đã tắt chống AFK!",
@@ -823,7 +840,6 @@ function StartAutoRejoined()
     if isAutoRejoined then return end
     isAutoRejoined = true
     
-    print("✅ Auto Rejoined đã bật")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🔄 Auto Rejoined",
         Text = "✅ Đã bật tự động tham gia lại!",
@@ -834,7 +850,6 @@ function StartAutoRejoined()
         if not isAutoRejoined then return end
         
         if not game:IsLoaded() or game:GetService("Players").LocalPlayer == nil then
-            print("🔄 Phát hiện mất kết nối, đang tham gia lại...")
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "🔄 Auto Rejoined",
                 Text = "🔄 Đang tham gia lại server...",
@@ -848,7 +863,6 @@ end
 
 function StopAutoRejoined()
     isAutoRejoined = false
-    print("⏹️ Auto Rejoined đã tắt")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🔄 Auto Rejoined",
         Text = "⏹️ Đã tắt tự động tham gia lại!",
@@ -861,7 +875,6 @@ function StartAntiBanned()
     if isAntiBanned then return end
     isAntiBanned = true
     
-    print("✅ Anti-Banned đã bật")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🛡️ Anti-Banned",
         Text = "✅ Đã bật chống banned từ server!",
@@ -873,7 +886,7 @@ function StartAntiBanned()
     game:GetService("RunService").Heartbeat:Connect(function()
         if not isAntiBanned then return end
         
-        local success, err = pcall(function()
+        local success = pcall(function()
             local player = game:GetService("Players").LocalPlayer
             if not player then return end
             
@@ -882,7 +895,6 @@ function StartAntiBanned()
         
         if not success and not bannedDetected then
             bannedDetected = true
-            print("⚠️ Phát hiện nguy cơ bị banned, đang xử lý...")
             
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "🛡️ Anti-Banned",
@@ -897,7 +909,6 @@ end
 
 function StopAntiBanned()
     isAntiBanned = false
-    print("⏹️ Anti-Banned đã tắt")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🛡️ Anti-Banned",
         Text = "⏹️ Đã tắt chống banned!",
@@ -910,7 +921,6 @@ function StartAntiError()
     if isAntiError then return end
     isAntiError = true
     
-    print("✅ Anti-Error Code đã bật")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🛡️ Anti-Error Code",
         Text = "✅ Đã bật chống tất cả mã lỗi!",
@@ -920,23 +930,21 @@ function StartAntiError()
     errorCheckConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not isAntiError then return end
         
-        local success, err = pcall(function()
+        local success = pcall(function()
             if game:GetService("CoreGui"):FindFirstChild("RobloxPromptGui") then
                 local prompts = game:GetService("CoreGui").RobloxPromptGui
                 for _, child in pairs(prompts:GetChildren()) do
                     if child:IsA("ScreenGui") and child.Enabled then
                         child.Enabled = false
-                        print("🛡️ Đã phát hiện và chặn lỗi prompt!")
                     end
                 end
             end
         end)
         
         if not success then
-            print("⚠️ Đã phát hiện lỗi: " .. tostring(err))
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "🛡️ Anti-Error",
-                Text = "⚠️ Đã phát hiện và xử lý lỗi: " .. tostring(err):sub(1, 50),
+                Text = "⚠️ Đã phát hiện và xử lý lỗi!",
                 Duration = 2
             })
             
@@ -954,7 +962,6 @@ function StopAntiError()
         errorCheckConnection = nil
     end
     
-    print("⏹️ Anti-Error Code đã tắt")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🛡️ Anti-Error Code",
         Text = "⏹️ Đã tắt chống mã lỗi!",
@@ -967,12 +974,10 @@ function StartSoundDead()
     if isSoundDead then return end
     isSoundDead = true
     
-    print("✅ Sound Dead/Defeated đã bật")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🔊 Sound Dead/Defeated",
         Text = "✅ Đã bật phát hiện chết/hạ gục!",
-        Duration = 2
-    })
+        Duration = 2    })
     
     soundDeadConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not isSoundDead then return end
@@ -984,7 +989,6 @@ function StartSoundDead()
                 
                 if currentHealth <= 0 and not isDead then
                     isDead = true
-                    print("💀 Người chơi đã chết hoặc bị hạ gục!")
                     
                     game:GetService("StarterGui"):SetCore("SendNotification", {
                         Title = "💀 Đã chết/Hạ gục",
@@ -997,7 +1001,6 @@ function StartSoundDead()
                     end
                 elseif currentHealth > 0 and isDead then
                     isDead = false
-                    print("🔄 Người chơi đã được hồi sinh!")
                 end
                 
                 lastHealth = currentHealth
@@ -1013,7 +1016,6 @@ function StopSoundDead()
         soundDeadConnection = nil
     end
     
-    print("⏹️ Sound Dead/Defeated đã tắt")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🔊 Sound Dead/Defeated",
         Text = "⏹️ Đã tắt phát hiện chết/hạ gục!",
@@ -1026,7 +1028,6 @@ function StartSoundWin()
     if isSoundWin then return end
     isSoundWin = true
     
-    print("✅ Sound Survive/Win đã bật")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🔊 Sound Survive/Win",
         Text = "✅ Đã bật phát hiện thắng/sống sót!",
@@ -1045,8 +1046,6 @@ function StartSoundWin()
                     isDead = false
                     isWin = true
                     
-                    print("🎉 Người chơi đã được hồi sinh hoặc thắng!")
-                    
                     game:GetService("StarterGui"):SetCore("SendNotification", {
                         Title = "🎉 Thắng/Sống sót",
                         Text = "🔊 Đang phát âm thanh Survive/Win!",
@@ -1057,7 +1056,6 @@ function StartSoundWin()
                         PlaySound(CONFIG.SOUND_WIN_ID, 0.5)
                     end
                     
-                    game:GetService("Debris"):AddItem(Instance.new("BoolValue"), 5)
                     wait(5)
                     isWin = false
                 end
@@ -1065,8 +1063,6 @@ function StartSoundWin()
                 local gameState = game:GetService("Workspace"):FindFirstChild("GameState")
                 if gameState and gameState.Value == "Win" and not isWin then
                     isWin = true
-                    
-                    print("🎉 Người chơi đã thắng (qua vòng mới/hết giờ)!")
                     
                     game:GetService("StarterGui"):SetCore("SendNotification", {
                         Title = "🎉 Thắng vòng",
@@ -1093,7 +1089,6 @@ function StopSoundWin()
         soundWinConnection = nil
     end
     
-    print("⏹️ Sound Survive/Win đã tắt")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🔊 Sound Survive/Win",
         Text = "⏹️ Đã tắt phát hiện thắng/sống sót!",
@@ -1223,12 +1218,3 @@ game:GetService("UserInputService").InputEnded:Connect(function(input)
 end)
 
 print("✅ Nexus Hub đã tải thành công!")
-print("🎯 Farm Event & Farm LV sẵn sàng!")
-print("🛡️ Anti-comprehensive & Sound đã sẵn sàng!")
-print("🎬 Theme chuyển động từ video ID:", CONFIG.VIDEO_ID)
-print("🖼️ Hình ảnh ID:", CONFIG.IMAGE_ID)
-print("🎵 Nhạc ID:", CONFIG.MUSIC_ID)
-print("📁 Google Drive:", CONFIG.GOOGLE_DRIVE_URL)
-print("🎞️ GIF URL:", CONFIG.GIF_URL)
-print("💀 Sound Dead ID:", CONFIG.SOUND_DEAD_ID)
-print("🎉 Sound Win ID:", CONFIG.SOUND_WIN_ID)
