@@ -3,22 +3,92 @@
 -- SUBTITLE: LOADING
 -- ============================================
 
--- Kiểm tra và tải Library an toàn
+-- === KIỂM TRA VÀ TẢI LIBRARY ===
 local Library = nil
 local loadSuccess, loadError = pcall(function()
     Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/UI-Libraries/main/WindUI.lua"))()
 end)
 
 if not loadSuccess or not Library then
+    -- Thông báo lỗi giống Roblox
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "❌ Lỗi",
-        Text = "Không thể tải WindUI Library! Vui lòng thử lại.",
-        Duration = 5
+        Title = "❌ Thất bại hoặc lỗi khởi động!",
+        Text = "📌 Xin vui lòng báo admin để fix hoặc thử lại lần nữa nhé!",
+        Duration = 10,
+        Icon = "rbxassetid://6031090994"
     })
-    return
+    
+    -- In lỗi ra console
+    warn("❌ Không thể tải WindUI Library!")
+    warn("Lỗi: " .. tostring(loadError))
+    
+    -- Tạo UI fallback đơn giản nếu không tải được Library
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "NexusHubFallback"
+    ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0, 400, 0, 300)
+    Frame.Position = UDim2.new(0.5, -200, 0.5, -150)
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    Frame.BorderSizePixel = 0
+    Frame.Parent = ScreenGui
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 10)
+    Corner.Parent = Frame
+    
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 50)
+    Title.Position = UDim2.new(0, 0, 0, 10)
+    Title.Text = "❌ Lỗi khởi động"
+    Title.TextColor3 = Color3.fromRGB(255, 100, 100)
+    Title.TextSize = 24
+    Title.TextScaled = true
+    Title.BackgroundTransparency = 1
+    Title.Parent = Frame
+    
+    local Desc = Instance.new("TextLabel")
+    Desc.Size = UDim2.new(1, -20, 0, 80)
+    Desc.Position = UDim2.new(0, 10, 0, 70)
+    Desc.Text = "📌 Không thể tải WindUI Library!\nVui lòng báo admin để fix\nhoặc thử lại lần nữa nhé!"
+    Desc.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Desc.TextSize = 16
+    Desc.TextWrapped = true
+    Desc.BackgroundTransparency = 1
+    Desc.Parent = Frame
+    
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0, 150, 0, 40)
+    Button.Position = UDim2.new(0.5, -75, 1, -60)
+    Button.Text = "🔄 Thử lại"
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    Button.BorderSizePixel = 0
+    Button.Parent = Frame
+    
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 5)
+    BtnCorner.Parent = Button
+    
+    Button.MouseButton1Click:Connect(function()
+        -- Reload script
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
+        ScreenGui:Destroy()
+    end)
+    
+    return -- Dừng script
 end
 
--- Tạo Window với xử lý lỗi
+-- === THÔNG BÁO KHỞI ĐỘNG THÀNH CÔNG ===
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "✔️ Running Script...",
+    Text = "Khởi động script thành công!",
+    Duration = 5,
+    Icon = "rbxassetid://6031090938"
+})
+
+-- === TẠO WINDOW ===
 local Window = nil
 local createSuccess, createError = pcall(function()
     Window = Library:CreateWindow({
@@ -31,14 +101,16 @@ end)
 
 if not createSuccess or not Window then
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "❌ Lỗi",
-        Text = "Không thể tạo cửa sổ! Lỗi: " .. tostring(createError),
-        Duration = 5
+        Title = "❌ Thất bại hoặc lỗi khởi động!",
+        Text = "📌 Xin vui lòng báo admin để fix hoặc thử lại lần nữa nhé!",
+        Duration = 10,
+        Icon = "rbxassetid://6031090994"
     })
+    warn("❌ Không thể tạo cửa sổ! Lỗi: " .. tostring(createError))
     return
 end
 
--- === CẤU HÌNH THEME TỪ ID ROBLOX ===
+-- === CẤU HÌNH THEME ===
 local CONFIG = {
     VIDEO_ID = "1818613964",
     IMAGE_ID = "6031090938",
@@ -49,7 +121,7 @@ local CONFIG = {
     SOUND_WIN_ID = "1840861080"
 }
 
--- === LẤY DỮ LIỆU TỪ VIDEO (CÓ XỬ LÝ LỖI) ===
+-- === LẤY DỮ LIỆU TỪ VIDEO ===
 local function GetVideoData(videoId)
     if videoId == "none" then return nil end
     
@@ -74,26 +146,17 @@ end
 
 local videoData = GetVideoData(CONFIG.VIDEO_ID)
 
--- === LẤY DỮ LIỆU TỪ GOOGLE DRIVE ===
-local function GetGoogleDriveData(url)
-    if url == "none" then return nil end
-    
-    local success, data = pcall(function()
-        return game:HttpGet(url)
-    end)
-    
-    if success then
-        return data
-    end
-    return nil
-end
-
-local googleData = GetGoogleDriveData(CONFIG.GOOGLE_DRIVE_URL)
+-- === THEME ===
+local Theme = Window:Theme({
+    Background = Color3.fromRGB(15, 15, 20),
+    Glow = Color3.fromRGB(0, 200, 255),
+    Accent = Color3.fromRGB(0, 150, 255),
+    Text = Color3.fromRGB(255, 255, 255),
+    SubText = Color3.fromRGB(160, 160, 170)
+})
 
 -- === TẠO BACKGROUND TỪ HÌNH ẢNH ===
-local function CreateImageBackground()
-    if CONFIG.IMAGE_ID == "none" then return end
-    
+if CONFIG.IMAGE_ID ~= "none" then
     pcall(function()
         local imageLabel = Instance.new("ImageLabel")
         imageLabel.Size = UDim2.fromScale(1, 1)
@@ -105,12 +168,8 @@ local function CreateImageBackground()
     end)
 end
 
-CreateImageBackground()
-
 -- === TẠO BACKGROUND TỪ GIF ===
-local function CreateGIFBackground()
-    if CONFIG.GIF_URL == "none" then return end
-    
+if CONFIG.GIF_URL ~= "none" then
     pcall(function()
         local imageLabel = Instance.new("ImageLabel")
         imageLabel.Size = UDim2.fromScale(1, 1)
@@ -122,12 +181,8 @@ local function CreateGIFBackground()
     end)
 end
 
-CreateGIFBackground()
-
--- === PHÁT NHẠC TỪ ID ROBLOX ===
-local function PlayMusic()
-    if CONFIG.MUSIC_ID == "none" then return end
-    
+-- === PHÁT NHẠC ===
+if CONFIG.MUSIC_ID ~= "none" then
     pcall(function()
         local sound = Instance.new("Sound")
         sound.SoundId = "rbxassetid://" .. CONFIG.MUSIC_ID
@@ -138,18 +193,7 @@ local function PlayMusic()
     end)
 end
 
-PlayMusic()
-
--- === THEME CHUYỂN ĐỘNG TỪ VIDEO ===
-local Theme = Window:Theme({
-    Background = Color3.fromRGB(15, 15, 20),
-    Glow = Color3.fromRGB(0, 200, 255),
-    Accent = Color3.fromRGB(0, 150, 255),
-    Text = Color3.fromRGB(255, 255, 255),
-    SubText = Color3.fromRGB(160, 160, 170)
-})
-
--- === TẠO HIỆU ỨNG CHUYỂN ĐỘNG TỪ VIDEO ===
+-- === HIỆU ỨNG CHUYỂN ĐỘNG TỪ VIDEO ===
 local motionElements = {}
 local isMotionRunning = false
 local motionSpeed = 1
@@ -277,20 +321,11 @@ function StartMotion()
     end)
 end
 
-function StopMotion()
-    isMotionRunning = false
-    for _, obj in pairs(motionElements) do
-        pcall(function() obj.Frame:Destroy() end)
-    end
-    motionElements = {}
-end
-
--- Khởi chạy hiệu ứng chuyển động
 if CONFIG.VIDEO_ID ~= "none" then
     StartMotion()
 end
 
--- === HIỂN THỊ THÔNG TIN VIDEO ===
+-- === THÔNG TIN VIDEO ===
 if videoData then
     pcall(function()
         local infoFrame = Instance.new("Frame")
@@ -323,13 +358,6 @@ if videoData then
     end)
 end
 
--- === THÔNG BÁO KHỞI ĐỘNG ===
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "🔔 Notify Running Script...",
-    Text = "⚡ Đã khởi động script thành công!",
-    Duration = 3
-})
-
 -- === FARM HANDMADE TAB ===
 local FarmTab = Window:Tab({
     Title = "Farm Handmade",
@@ -341,7 +369,7 @@ local FarmGroup = FarmTab:Group({
     Side = "left"
 })
 
--- === DANH SÁCH TÊN VẬT PHẨM SỰ KIỆN (20 Ô) ===
+-- === DANH SÁCH VẬT PHẨM ===
 local EventItems = {
     "none",
     "none",
@@ -365,7 +393,7 @@ local EventItems = {
     "none"
 }
 
--- === BIẾN TOÀN CỤ FARM ===
+-- === BIẾN TOÀN CỤ ===
 local isFarming = false
 local isFarmingLV = false
 local wall = nil
@@ -454,7 +482,7 @@ function DestroyWall()
     end
 end
 
--- === HÀM TELEPORT TỨC THỜI ===
+-- === HÀM TELEPORT ===
 function TeleportInstant(targetPos)
     if isTeleporting then return false end
     if not humanoidRootPart then return false end
@@ -470,7 +498,7 @@ function TeleportInstant(targetPos)
     return success
 end
 
--- === HÀM KIỂM TRA NGƯỜI CHƠI TRÊN TƯỜNG ===
+-- === HÀM KIỂM TRA TRÊN TƯỜNG ===
 function CheckPlayerOnWall()
     if not wall or not humanoidRootPart then return false end
     local playerPos = humanoidRootPart.Position
@@ -479,7 +507,7 @@ function CheckPlayerOnWall()
     return distance < 15
 end
 
--- === HÀM QUÉT VẬT PHẨM SỰ KIỆN ===
+-- === HÀM QUÉT VẬT PHẨM ===
 function ScanEventItems()
     local foundItems = {}
     local hasValidItem = false
@@ -721,7 +749,7 @@ FarmGroup:Toggle({
     end
 })
 
--- === XỬ LÝ KHI NGƯỜI CHƠI RỜI KHỎI TƯỜNG ===
+-- === XỬ LÝ RỜI KHỎI TƯỜNG ===
 game:GetService("RunService").Heartbeat:Connect(function()
     if (isFarming or isFarmingLV) and wall then
         if not CheckPlayerOnWall() then
@@ -731,7 +759,7 @@ game:GetService("RunService").Heartbeat:Connect(function()
     end
 end)
 
--- === XỬ LÝ KHI NGƯỜI CHƠI BỊ DISCONNECT ===
+-- === XỬ LÝ CHARACTER ===
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
     humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
@@ -742,7 +770,7 @@ player.CharacterAdded:Connect(function(newChar)
     end
 end)
 
--- === TAB ANTI-COMPREHENSIVE & SOUND ===
+-- === TAB ANTI ===
 local AntiTab = Window:Tab({
     Title = "Anti-comprehensive & Sound",
     Icon = "rbxassetid://6031090994"
@@ -753,7 +781,7 @@ local AntiGroup = AntiTab:Group({
     Side = "left"
 })
 
--- === BIẾN TOÀN CỤ ANTI ===
+-- === BIẾN ANTI ===
 local isAntiAFK = false
 local isAutoRejoined = false
 local isAntiBanned = false
@@ -765,7 +793,6 @@ local errorCheckConnection = nil
 local soundDeadConnection = nil
 local soundWinConnection = nil
 local lastMoveTime = tick()
-local lastHealth = 100
 local isDead = false
 local isWin = false
 
@@ -790,7 +817,7 @@ function PlaySound(soundId, volume)
     end)
 end
 
--- === HÀM CHỐNG AFK (20 PHÚT) ===
+-- === HÀM CHỐNG AFK ===
 function StartAntiAFK()
     if isAntiAFK then return end
     isAntiAFK = true
@@ -810,12 +837,6 @@ function StartAntiAFK()
                 local currentPos = humanoidRootPart.Position
                 humanoidRootPart.CFrame = CFrame.new(currentPos + Vector3.new(0, 0.1, 0))
                 lastMoveTime = tick()
-                
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = "🔄 Anti-AFK",
-                    Text = "🔄 Đã di chuyển để chống AFK!",
-                    Duration = 1
-                })
             end
         end
     end)
@@ -827,12 +848,6 @@ function StopAntiAFK()
         antiAFKConnection:Disconnect()
         antiAFKConnection = nil
     end
-    
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🛡️ Anti-AFK",
-        Text = "⏹️ Đã tắt chống AFK!",
-        Duration = 2
-    })
 end
 
 -- === HÀM AUTO REJOINED ===
@@ -850,12 +865,6 @@ function StartAutoRejoined()
         if not isAutoRejoined then return end
         
         if not game:IsLoaded() or game:GetService("Players").LocalPlayer == nil then
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "🔄 Auto Rejoined",
-                Text = "🔄 Đang tham gia lại server...",
-                Duration = 2
-            })
-            
             game:GetService("TeleportService"):Teleport(game.PlaceId)
         end
     end)
@@ -863,11 +872,6 @@ end
 
 function StopAutoRejoined()
     isAutoRejoined = false
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🔄 Auto Rejoined",
-        Text = "⏹️ Đã tắt tự động tham gia lại!",
-        Duration = 2
-    })
 end
 
 -- === HÀM ANTI-BANNED ===
@@ -889,19 +893,11 @@ function StartAntiBanned()
         local success = pcall(function()
             local player = game:GetService("Players").LocalPlayer
             if not player then return end
-            
             player:GetAttribute("Banned")
         end)
         
         if not success and not bannedDetected then
             bannedDetected = true
-            
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "🛡️ Anti-Banned",
-                Text = "⚠️ Đã phát hiện nguy cơ bị banned! Đang xử lý...",
-                Duration = 3
-            })
-            
             game:GetService("TeleportService"):Teleport(game.PlaceId)
         end
     end)
@@ -909,14 +905,9 @@ end
 
 function StopAntiBanned()
     isAntiBanned = false
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🛡️ Anti-Banned",
-        Text = "⏹️ Đã tắt chống banned!",
-        Duration = 2
-    })
 end
 
--- === HÀM ANTI-ERROR CODE ===
+-- === HÀM ANTI-ERROR ===
 function StartAntiError()
     if isAntiError then return end
     isAntiError = true
@@ -941,16 +932,8 @@ function StartAntiError()
             end
         end)
         
-        if not success then
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "🛡️ Anti-Error",
-                Text = "⚠️ Đã phát hiện và xử lý lỗi!",
-                Duration = 2
-            })
-            
-            if isAutoRejoined then
-                game:GetService("TeleportService"):Teleport(game.PlaceId)
-            end
+        if not success and isAutoRejoined then
+            game:GetService("TeleportService"):Teleport(game.PlaceId)
         end
     end)
 end
@@ -961,15 +944,9 @@ function StopAntiError()
         errorCheckConnection:Disconnect()
         errorCheckConnection = nil
     end
-    
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🛡️ Anti-Error Code",
-        Text = "⏹️ Đã tắt chống mã lỗi!",
-        Duration = 2
-    })
 end
 
--- === HÀM SOUND DEAD/DEFEATED ===
+-- === HÀM SOUND DEAD ===
 function StartSoundDead()
     if isSoundDead then return end
     isSoundDead = true
@@ -977,7 +954,8 @@ function StartSoundDead()
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "🔊 Sound Dead/Defeated",
         Text = "✅ Đã bật phát hiện chết/hạ gục!",
-        Duration = 2    })
+        Duration = 2
+    })
     
     soundDeadConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not isSoundDead then return end
@@ -1002,8 +980,6 @@ function StartSoundDead()
                 elseif currentHealth > 0 and isDead then
                     isDead = false
                 end
-                
-                lastHealth = currentHealth
             end
         end)
     end)
@@ -1015,15 +991,9 @@ function StopSoundDead()
         soundDeadConnection:Disconnect()
         soundDeadConnection = nil
     end
-    
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🔊 Sound Dead/Defeated",
-        Text = "⏹️ Đã tắt phát hiện chết/hạ gục!",
-        Duration = 2
-    })
 end
 
--- === HÀM SOUND SURVIVE/WIN ===
+-- === HÀM SOUND WIN ===
 function StartSoundWin()
     if isSoundWin then return end
     isSoundWin = true
@@ -1088,12 +1058,6 @@ function StopSoundWin()
         soundWinConnection:Disconnect()
         soundWinConnection = nil
     end
-    
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🔊 Sound Survive/Win",
-        Text = "⏹️ Đã tắt phát hiện thắng/sống sót!",
-        Duration = 2
-    })
 end
 
 -- === TẠO TOGGLE ANTI-AFK ===
@@ -1103,13 +1067,9 @@ AntiGroup:Toggle({
     Default = false,
     Callback = function(state)
         if state then
-            pcall(function()
-                StartAntiAFK()
-            end)
+            pcall(function() StartAntiAFK() end)
         else
-            pcall(function()
-                StopAntiAFK()
-            end)
+            pcall(function() StopAntiAFK() end)
         end
     end
 })
@@ -1121,13 +1081,9 @@ AntiGroup:Toggle({
     Default = false,
     Callback = function(state)
         if state then
-            pcall(function()
-                StartAutoRejoined()
-            end)
+            pcall(function() StartAutoRejoined() end)
         else
-            pcall(function()
-                StopAutoRejoined()
-            end)
+            pcall(function() StopAutoRejoined() end)
         end
     end
 })
@@ -1139,72 +1095,56 @@ AntiGroup:Toggle({
     Default = false,
     Callback = function(state)
         if state then
-            pcall(function()
-                StartAntiBanned()
-            end)
+            pcall(function() StartAntiBanned() end)
         else
-            pcall(function()
-                StopAntiBanned()
-            end)
+            pcall(function() StopAntiBanned() end)
         end
     end
 })
 
--- === TẠO TOGGLE ANTI-ERROR CODE ===
+-- === TẠO TOGGLE ANTI-ERROR ===
 AntiGroup:Toggle({
     Title = "Anti-Error code",
     Desc = "Chống tất cả mã lỗi từ Roblox, Server và Admin",
     Default = false,
     Callback = function(state)
         if state then
-            pcall(function()
-                StartAntiError()
-            end)
+            pcall(function() StartAntiError() end)
         else
-            pcall(function()
-                StopAntiError()
-            end)
+            pcall(function() StopAntiError() end)
         end
     end
 })
 
--- === TẠO TOGGLE SOUND DEAD/DEFEATED ===
+-- === TẠO TOGGLE SOUND DEAD ===
 AntiGroup:Toggle({
     Title = "Sound Dead/Defeated",
     Desc = "Tự động phát nhạc khi chết hoặc bị hạ gục bởi Next Bot",
     Default = false,
     Callback = function(state)
         if state then
-            pcall(function()
-                StartSoundDead()
-            end)
+            pcall(function() StartSoundDead() end)
         else
-            pcall(function()
-                StopSoundDead()
-            end)
+            pcall(function() StopSoundDead() end)
         end
     end
 })
 
--- === TẠO TOGGLE SOUND SURVIVE/WIN ===
+-- === TẠO TOGGLE SOUND WIN ===
 AntiGroup:Toggle({
     Title = "Sound Survive/Win",
     Desc = "Tự động phát nhạc khi thắng hoặc được hồi sinh",
     Default = false,
     Callback = function(state)
         if state then
-            pcall(function()
-                StartSoundWin()
-            end)
+            pcall(function() StartSoundWin() end)
         else
-            pcall(function()
-                StopSoundWin()
-            end)
+            pcall(function() StopSoundWin() end)
         end
     end
 })
 
--- === ĐIỀU KHIỂN TỐC ĐỘ HIỆU ỨNG BẰNG PHÍM ===
+-- === ĐIỀU KHIỂN TỐC ĐỘ ===
 game:GetService("UserInputService").InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.LeftControl then
         motionSpeed = 2
