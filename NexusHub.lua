@@ -3,65 +3,58 @@
 -- SUBTITLE: LOADING
 -- ============================================
 
--- === KIỂM TRA VÀ TẢI WINDUI LIBRARY ===
-local Library = nil
-local loadSuccess = false
-local loadError = ""
-
--- Thử tải từ link chính thức
-local function LoadWindUI()
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-    end)
-    return success, result
-end
-
-loadSuccess, Library = LoadWindUI()
-
--- Nếu thất bại, thử link dự phòng
-if not loadSuccess or not Library then
-    loadSuccess, Library = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/7GrandDadPGN/VapeV4ForRoblox/main/WindUI.lua"))()
-    end)
-end
-
--- Nếu vẫn thất bại, báo lỗi và dừng
-if not loadSuccess or not Library then
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "❌ Lỗi thất bại hoặc Sai cấu trúc!",
-        Text = "❗ Xin vui lòng báo admin hoặc thử lại...",
-        Duration = 10
-    })
-    warn("❌ KHÔNG THỂ TẢI WINDUI LIBRARY!")
-    return
-end
+-- === TẢI WINDUI LIBRARY ===
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 
 -- === TẠO WINDOW ===
-local Window = Library:CreateWindow({
+local Window = WindUI:CreateWindow({
     Title = "Nexus Hub | Make By: Nate & Ngọt",
     SubTitle = "Loading",
-    Size = UDim2.fromOffset(600, 500),
+    Size = UDim2.fromOffset(600, 550),
     Center = true
 })
 
 -- === CẤU HÌNH ===
 local CONFIG = {
-    VIDEO_ID = "none",
-    IMAGE_ID = "none",
+    -- ID Hình ảnh Roblox (Nhập "none" nếu không dùng)
+    IMAGE_ID = "6031090938",
+    
+    -- ID Nhạc Roblox (Nhập "none" nếu không dùng)
     MUSIC_ID = "108531350726198",
-    GOOGLE_DRIVE_URL = "none",
+    
+    -- URL GIF (Nhập "none" nếu không dùng)
     GIF_URL = "https://media.tenor.com/FHTOu1fN6DcAAAAM/angry-anime.gif",
+    
+    -- ID Nhạc cho Sound Dead/Defeated
     SOUND_DEAD_ID = "1357900029",
+    
+    -- ID Nhạc cho Sound Survive/Win
     SOUND_WIN_ID = "113326842510307",
+    
+    -- Theme hiện tại
     CURRENT_THEME = "Dark"
 }
 
--- === DANH SÁCH TẤT CẢ BUILT-IN THEMES ===
+-- === DANH SÁCH THEMES ===
 local THEMES = {
     "Dark", "Light", "Rose", "Plant", "Red", "Indigo",
     "Sky", "Violet", "Amber", "Emerald", "Midnight",
     "Crimson", "Monokai Pro", "Cotton Candy", "Mellowsi", "Rainbow"
 }
+
+-- === TẠO BACKGROUND TỪ HÌNH ẢNH ===
+if CONFIG.IMAGE_ID ~= "none" then
+    pcall(function()
+        local imageLabel = Instance.new("ImageLabel")
+        imageLabel.Size = UDim2.fromScale(1, 1)
+        imageLabel.Image = "rbxassetid://" .. CONFIG.IMAGE_ID
+        imageLabel.BackgroundTransparency = 1
+        imageLabel.ImageTransparency = 0.3
+        imageLabel.ScaleType = Enum.ScaleType.Crop
+        imageLabel.ZIndex = 0
+        imageLabel.Parent = Window.MainFrame
+    end)
+end
 
 -- === TẠO BACKGROUND TỪ GIF ===
 if CONFIG.GIF_URL ~= "none" then
@@ -183,12 +176,6 @@ function CreateWall()
     
     local teleportPos = playerPos + Vector3.new(0, wallHeight/2 + 1, 0)
     TeleportInstant(teleportPos)
-    
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🏗️ Tạo tường",
-        Text = "✅ Tạo tường thành công!",
-        Duration = 2
-    })
     return true
 end
 
@@ -652,6 +639,180 @@ AntiGroup:Toggle({
     end
 })
 
+-- === TAB SERVER & PLAYERS ===
+local ServerTab = Window:Tab({
+    Title = "Server & Players",
+    Icon = "rbxassetid://6031090938"
+})
+
+local ServerGroup = ServerTab:Group({
+    Title = "Server Manager",
+    Side = "left"
+})
+
+-- === LABEL HIỂN THỊ SỐ NGƯỜI CHƠI ===
+local playerCountLabel = ServerGroup:Label({
+    Title = "Players in the server: 0"
+})
+
+local maxPlayersLabel = ServerGroup:Label({
+    Title = "Max players: 0"
+})
+
+-- === CẬP NHẬT SỐ NGƯỜI CHƠI ===
+local function UpdatePlayerCount()
+    local players = game:GetService("Players"):GetPlayers()
+    local maxPlayers = game:GetService("Players").MaxPlayers
+    playerCountLabel:Update("Players in the server: " .. #players)
+    maxPlayersLabel:Update("Max players: " .. maxPlayers)
+end
+
+UpdatePlayerCount()
+game:GetService("Players").PlayerAdded:Connect(UpdatePlayerCount)
+game:GetService("Players").PlayerRemoving:Connect(UpdatePlayerCount)
+
+-- === HÀM SERVER HOP ===
+function ServerHop()
+    local servers = {}
+    local currentPlaceId = game.PlaceId
+    
+    local success, result = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(
+            game:HttpGet("https://games.roblox.com/v1/games/" .. currentPlaceId .. "/servers/Public?limit=100")
+        )
+    end)
+    
+    if not success or not result or not result.data then
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "❌ Lỗi",
+            Text = "Không thể tìm server!",
+            Duration = 3
+        })
+        return
+    end
+    
+    local lowestPlayers = math.huge
+    local bestServer = nil
+    
+    for _, server in pairs(result.data) do
+        if server.playing < server.maxPlayers and server.playing < lowestPlayers then
+            lowestPlayers = server.playing
+            bestServer = server
+        end
+    end
+    
+    if bestServer then
+        game:GetService("TeleportService"):TeleportToPlaceInstance(currentPlaceId, bestServer.id, player)
+    end
+end
+
+-- === HÀM SERVER FULL ===
+function ServerFull()
+    local servers = {}
+    local currentPlaceId = game.PlaceId
+    
+    local success, result = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(
+            game:HttpGet("https://games.roblox.com/v1/games/" .. currentPlaceId .. "/servers/Public?limit=100")
+        )
+    end)
+    
+    if not success or not result or not result.data then
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "❌ Lỗi",
+            Text = "Không thể tìm server!",
+            Duration = 3
+        })
+        return
+    end
+    
+    local highestPlayers = -1
+    local bestServer = nil
+    
+    for _, server in pairs(result.data) do
+        if server.playing < server.maxPlayers and server.playing > highestPlayers then
+            highestPlayers = server.playing
+            bestServer = server
+        end
+    end
+    
+    if bestServer then
+        game:GetService("TeleportService"):TeleportToPlaceInstance(currentPlaceId, bestServer.id, player)
+    end
+end
+
+-- === HÀM REJOINED SERVER ===
+function RejoinedServer()
+    local currentPlaceId = game.PlaceId
+    game:GetService("TeleportService"):Teleport(currentPlaceId)
+end
+
+-- === HÀM RANDOM SERVER ===
+function RandomServer()
+    local servers = {}
+    local currentPlaceId = game.PlaceId
+    
+    local success, result = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(
+            game:HttpGet("https://games.roblox.com/v1/games/" .. currentPlaceId .. "/servers/Public?limit=100")
+        )
+    end)
+    
+    if not success or not result or not result.data then
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "❌ Lỗi",
+            Text = "Không thể tìm server!",
+            Duration = 3
+        })
+        return
+    end
+    
+    local availableServers = {}
+    for _, server in pairs(result.data) do
+        if server.playing < server.maxPlayers then
+            table.insert(availableServers, server)
+        end
+    end
+    
+    if #availableServers > 0 then
+        local randomServer = availableServers[math.random(1, #availableServers)]
+        game:GetService("TeleportService"):TeleportToPlaceInstance(currentPlaceId, randomServer.id, player)
+    end
+end
+
+-- === TẠO BUTTON SERVER ===
+ServerGroup:Button({
+    Title = "Server Hop",
+    Desc = "Tìm máy chủ ít người chơi nhất",
+    Callback = function()
+        pcall(ServerHop)
+    end
+})
+
+ServerGroup:Button({
+    Title = "Server Full",
+    Desc = "Tìm máy chủ gần full người chơi",
+    Callback = function()
+        pcall(ServerFull)
+    end
+})
+
+ServerGroup:Button({
+    Title = "Rejoined Server",
+    Desc = "Vào lại máy chủ đã ở trước đó",
+    Callback = function()
+        pcall(RejoinedServer)
+    end
+})
+
+ServerGroup:Button({
+    Title = "Random Server",
+    Desc = "Tìm server ngẫu nhiên không full",
+    Callback = function()
+        pcall(RandomServer)
+    end
+})
+
 -- === TAB SETTINGS ===
 local SettingsTab = Window:Tab({
     Title = "Settings",
@@ -663,11 +824,107 @@ local SettingsGroup = SettingsTab:Group({
     Side = "left"
 })
 
+-- === SHOW FPS TOGGLE ===
+local isShowFPS = false
+local fpsGUI = nil
+local fpsLabel = nil
+
+function CreateFPSGUI()
+    if fpsGUI then
+        fpsGUI:Destroy()
+        fpsGUI = nil
+        fpsLabel = nil
+    end
+    
+    fpsGUI = Instance.new("ScreenGui")
+    fpsGUI.Name = "FPSDisplay"
+    fpsGUI.Parent = player:WaitForChild("PlayerGui")
+    fpsGUI.ResetOnSpawn = false
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 100, 0, 50)
+    frame.Position = UDim2.new(1, -110, 0, 10)
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BorderSizePixel = 0
+    frame.Parent = fpsGUI
+    
+    local uiStroke = Instance.new("UIStroke")
+    uiStroke.Color = Color3.fromRGB(255, 0, 0)
+    uiStroke.Thickness = 2
+    uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    uiStroke.Parent = frame
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+    
+    fpsLabel = Instance.new("TextLabel")
+    fpsLabel.Size = UDim2.new(1, 0, 1, 0)
+    fpsLabel.BackgroundTransparency = 1
+    fpsLabel.Text = "FPS: 0"
+    fpsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    fpsLabel.TextSize = 18
+    fpsLabel.Font = Enum.Font.GothamBold
+    fpsLabel.Parent = frame
+    
+    spawn(function()
+        local hue = 0
+        while fpsGUI and fpsGUI.Parent do
+            hue = (hue + 0.01) % 1
+            local color = Color3.fromHSV(hue, 1, 1)
+            uiStroke.Color = color
+            wait(0.05)
+        end
+    end)
+    
+    spawn(function()
+        local lastTime = tick()
+        local frameCount = 0
+        
+        while fpsGUI and fpsGUI.Parent do
+            frameCount = frameCount + 1
+            local currentTime = tick()
+            if currentTime - lastTime >= 1 then
+                local fps = frameCount
+                if fpsLabel then
+                    fpsLabel.Text = "FPS: " .. fps
+                end
+                frameCount = 0
+                lastTime = currentTime
+            end
+            wait()
+        end
+    end)
+end
+
+function DestroyFPSGUI()
+    if fpsGUI then
+        fpsGUI:Destroy()
+        fpsGUI = nil
+        fpsLabel = nil
+    end
+end
+
+-- === TOGGLE SHOW FPS ===
+local fpsToggle = SettingsGroup:Toggle({
+    Title = "Show Fps",
+    Desc = "Hiển thị FPS thật của người dùng",
+    Default = false,
+    Callback = function(state)
+        isShowFPS = state
+        if state then
+            CreateFPSGUI()
+        else
+            DestroyFPSGUI()
+        end
+    end
+})
+
 -- === DROPDOWN CHỌN THEME ===
 local selectedTheme = "Dark"
 SettingsGroup:Dropdown({
     Title = "Chọn Theme",
-    Desc = "Chọn theme cho WindUI Library (16 themes có sẵn)",
+    Desc = "Chọn theme cho WindUI Library (16 themes)",
     Default = "Dark",
     Options = THEMES,
     Callback = function(option)
@@ -688,8 +945,6 @@ SettingsGroup:Button({
             })
             return
         end
-        
-        CONFIG.CURRENT_THEME = selectedTheme
         
         if Window and Window.MainFrame then
             Window.MainFrame:Destroy()
@@ -721,6 +976,7 @@ SettingsGroup:Button({
         if Window and Window.MainFrame then
             Window.MainFrame:Destroy()
         end
+        DestroyFPSGUI()
     end
 })
 
