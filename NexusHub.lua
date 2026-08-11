@@ -1,793 +1,651 @@
--- ============================================
--- NEXUS HUB | MAKE BY: NATE & NGỌT
--- SUBTITLE: LOADING
--- ============================================
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
 
--- === TẢI WINDUI (LINK CHÍNH THỨC) ===
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+-- ===== PHÁT NHẠC KHI KHỞI ĐỘNG =====
+local function PlayStartupMusic()
+    local soundId = "rbxassetid://9120263686" -- Thay ID nhạc của bạn vào đây
+    
+    local sound = Instance.new("Sound")
+    sound.SoundId = soundId
+    sound.Volume = 0.5
+    sound.Looped = false
+    sound.Parent = game.Workspace
+    
+    sound:Play()
+    
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+    
+    print("Đã phát nhạc chào mừng!")
+end
 
--- === TẠO WINDOW ===
-local Window = WindUI:CreateWindow({
-    Title = "Nexus Hub | Make By: Nate & Ngọt",
-    SubTitle = "Loading",
-    Size = UDim2.fromOffset(600, 500),
-    Center = true
+PlayStartupMusic()
+
+
+local window = Rayfield:CreateWindow({
+    name = "✨ Nexus Hub",
+    subtitle = "Created by: Nate & Ngọt",
+    theme = "Frost",
 })
 
--- === THÔNG BÁO KHỞI ĐỘNG ===
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "✔️ Running Script...",
-    Text = "Khởi động script thành công!",
-    Duration = 5
+
+window:Notify({
+    title = "🔔 Notify Running...",
+    content = "The UI Library Script Ran Successfully!",
+    duration = 5,
 })
 
--- === CẤU HÌNH ===
-local CONFIG = {
-    IMAGE_ID = "6031090938",
-    MUSIC_ID = "108531350726198",
-    GIF_URL = "https://media.tenor.com/FHTOu1fN6DcAAAAM/angry-anime.gif",
-    SOUND_DEAD_ID = "1357900029",
-    SOUND_WIN_ID = "113326842510307"
-}
 
--- === BACKGROUND ===
-if CONFIG.IMAGE_ID ~= "none" then
-    pcall(function()
-        local imageLabel = Instance.new("ImageLabel")
-        imageLabel.Size = UDim2.fromScale(1, 1)
-        imageLabel.Image = "rbxassetid://" .. CONFIG.IMAGE_ID
-        imageLabel.BackgroundTransparency = 1
-        imageLabel.ImageTransparency = 0.3
-        imageLabel.ScaleType = Enum.ScaleType.Crop
-        imageLabel.ZIndex = 0
-        imageLabel.Parent = Window.MainFrame
+-- ===== TẠO TAG VERSION =====
+local versionTag = window:CreateTag({
+    text = "⚡ Version: 2.1.7",
+    color = Color3.fromRGB(100, 200, 255),
+})
+
+-- ===== TẠO TAG FPS =====
+local fpsTag = window:CreateTag({
+    text = "🟢 FPS Stable",
+    color = Color3.fromRGB(80, 200, 120),
+})
+
+-- ===== HÀM CẬP NHẬT FPS TAG =====
+local function UpdateFpsTag()
+    local lastTime = tick()
+    local frameCount = 0
+    local fps = 0
+    
+    game:GetService("RunService").Heartbeat:Connect(function()
+        frameCount = frameCount + 1
+        local currentTime = tick()
+        local deltaTime = currentTime - lastTime
+        
+        if deltaTime >= 1 then
+            fps = frameCount / deltaTime
+            frameCount = 0
+            lastTime = currentTime
+            
+            -- Cập nhật tag dựa trên FPS
+            if fps >= 50 then
+                -- Ổn định
+                fpsTag:Set({
+                    text = "🟢 FPS Stable (" .. math.floor(fps) .. ")",
+                    color = Color3.fromRGB(80, 200, 120)
+                })
+            elseif fps >= 30 and fps < 50 then
+                -- Trung bình
+                fpsTag:Set({
+                    text = "🟠 FPS Medium (" .. math.floor(fps) .. ")",
+                    color = Color3.fromRGB(255, 175, 15)
+                })
+            else
+                -- Thấp
+                fpsTag:Set({
+                    text = "🔴 FPS Low (" .. math.floor(fps) .. ")",
+                    color = Color3.fromRGB(255, 50, 50)
+                })
+            end
+        end
     end)
 end
 
-if CONFIG.GIF_URL ~= "none" then
-    pcall(function()
-        local imageLabel = Instance.new("ImageLabel")
-        imageLabel.Size = UDim2.fromScale(1, 1)
-        imageLabel.Image = CONFIG.GIF_URL
-        imageLabel.BackgroundTransparency = 1
-        imageLabel.ImageTransparency = 0.3
-        imageLabel.ScaleType = Enum.ScaleType.Crop
-        imageLabel.ZIndex = 0
-        imageLabel.Parent = Window.MainFrame
-    end)
-end
+-- Bắt đầu cập nhật FPS
+UpdateFpsTag()
 
--- === PHÁT NHẠC ===
-if CONFIG.MUSIC_ID ~= "none" then
-    pcall(function()
-        local sound = Instance.new("Sound")
-        sound.SoundId = "rbxassetid://" .. CONFIG.MUSIC_ID
-        sound.Volume = 0.8
-        sound.Looped = true
-        sound.Parent = game:GetService("Players").LocalPlayer
-        sound:Play()
-    end)
-end
-
--- === TẠO TAB FARM ===
-local FarmTab = Window:Tab({
-    Title = "Farm Handmade"
+-- ===== TẠO TAB =====
+local farmTab = window:CreateTab({
+    name = "Farm Handmade",
+    icon = "rbxassetid://93364949241311"
 })
 
-local FarmGroup = FarmTab:Group({
-    Title = "Farm Event",
-    Side = "left"
-})
-
--- === FARM LOGIC ===
-local EventItems = {
-    "none", "none", "none", "none", "none",
-    "none", "none", "none", "none", "none",
-    "none", "none", "none", "none", "none",
-    "none", "none", "Bubble", "none", "none"
-}
-
+-- ===== BIẾN TOÀN CỤC =====
+-- Farm Event
 local isFarming = false
-local isFarmingLV = false
-local wall = nil
-local farmConnection = nil
-local farmLVConnection = nil
-local player = game:GetService("Players").LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart") or nil
+local wallParts = {}
+local wallModel = nil
+local currentTarget = nil
+local isTeleporting = false
+local retryCount = 0
+local maxRetry = 2
+local isWaitingForItem = false
 
+-- Farm Lv
+local isFarmingLv = false
+local wallPartsLv = {}
+local wallModelLv = nil
+local isTeleportingLv = false
+
+-- Danh sách 20 vật phẩm
+local EventItems = {
+    "Bubble",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none"
+}
+
+-- ===== HÀM THÔNG BÁO =====
+function Notify(title, message, duration)
+    duration = duration or 3
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = title,
+        Text = message,
+        Duration = duration
+    })
+end
+
+-- ===== FARM EVENT =====
 function CreateWall()
-    if wall then wall:Destroy() end
-    
-    if not humanoidRootPart then
-        character = player.Character or player.CharacterAdded:Wait()
-        humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
-        if not humanoidRootPart then return false end
+    if wallModel then
+        wallModel:Destroy()
+        wallModel = nil
+        wallParts = {}
     end
     
-    local wallGroup = Instance.new("Model")
-    wallGroup.Name = "NexusWall"
+    Notify("Farm Event", "Đang tạo tường...", 2)
     
-    local positions = {
-        {0, 0, 10, CFrame.Angles(0, 0, 0)},
-        {0, 0, -10, CFrame.Angles(0, math.pi, 0)},
-        {10, 0, 0, CFrame.Angles(0, math.pi/2, 0)},
-        {-10, 0, 0, CFrame.Angles(0, -math.pi/2, 0)}
-    }
+    wallModel = Instance.new("Model")
+    wallModel.Name = "FarmWall"
     
-    for _, pos in pairs(positions) do
-        local wallPart = Instance.new("Part")
-        wallPart.Size = Vector3.new(20, 5, 1)
-        wallPart.Position = Vector3.new(pos[1], pos[2], pos[3])
-        wallPart.CFrame = pos[4]
-        wallPart.Anchored = true
-        wallPart.CanCollide = true
-        wallPart.BrickColor = BrickColor.new("White")
-        wallPart.Material = Enum.Material.SmoothPlastic
-        wallPart.Parent = wallGroup
+    local wallPosition = Vector3.new(0, -800, 0)
+    
+    local wall = Instance.new("Part")
+    wall.Size = Vector3.new(100, 10, 1)
+    wall.Position = wallPosition
+    wall.Anchored = true
+    wall.CanCollide = true
+    wall.Transparency = 0
+    wall.BrickColor = BrickColor.new("White")
+    wall.Material = Enum.Material.SmoothPlastic
+    wall.Parent = wallModel
+    
+    for i = -8, 8 do
+        local extraWall = wall:Clone()
+        extraWall.Position = wallPosition + Vector3.new(i * 100, 0, 0)
+        extraWall.Parent = wallModel
+        table.insert(wallParts, extraWall)
     end
     
-    local floor = Instance.new("Part")
-    floor.Size = Vector3.new(18, 0.5, 18)
-    floor.Position = Vector3.new(0, -0.25, 0)
-    floor.Anchored = true
-    floor.CanCollide = true
-    floor.BrickColor = BrickColor.new("White")
-    floor.Material = Enum.Material.SmoothPlastic
-    floor.Parent = wallGroup
+    wallModel.Parent = game.Workspace
     
-    local playerPos = humanoidRootPart.Position
-    wallGroup:SetPrimaryPartCFrame(CFrame.new(playerPos + Vector3.new(0, 0, 0)))
-    wallGroup.Parent = game.Workspace
-    wall = wallGroup
+    Notify("Farm Event", "Tường đã được tạo thành công!", 2)
     
-    humanoidRootPart.CFrame = CFrame.new(playerPos + Vector3.new(0, 3.5, 0))
-    return true
+    return wallModel
 end
 
-function DestroyWall()
-    if wall then
-        wall:Destroy()
-        wall = nil
+function CheckEventItemsList()
+    local validItems = {}
+    local noneCount = 0
+    
+    for _, item in ipairs(EventItems) do
+        if item == "none" then
+            noneCount = noneCount + 1
+        else
+            table.insert(validItems, item)
+        end
     end
+    
+    if noneCount == #EventItems then
+        return false, "Từ chối farm event vì hết sự kiện!", {}
+    end
+    
+    return true, "Đang tìm Bubble...", validItems
 end
 
-function ScanEventItems()
+function FindEventItems()
     local foundItems = {}
-    for _, itemName in pairs(EventItems) do
-        if itemName ~= "none" then
-            local allItems = game.Workspace:GetDescendants()
-            for _, obj in pairs(allItems) do
-                if obj:IsA("Part") and obj.Name == itemName then
-                    table.insert(foundItems, obj)
+    local valid, _, validItems = CheckEventItemsList()
+    
+    if not valid then
+        return foundItems
+    end
+    
+    Notify("Farm Event", "Đang quét toàn bộ server để tìm Bubble...", 2)
+    
+    local allParts = game.Workspace:GetDescendants()
+    
+    for _, obj in ipairs(allParts) do
+        if obj:IsA("BasePart") then
+            for _, itemName in ipairs(validItems) do
+                if obj.Name == itemName and obj.Parent and obj.Parent:IsA("Model") then
+                    local position = obj.Position
+                    local cframe = obj.CFrame
+                    
+                    if position and position.Magnitude > 0 and obj.Parent and obj.Parent:FindFirstChild("Humanoid") == nil then
+                        local exactPosition = Vector3.new(
+                            math.round(position.X * 1000) / 1000,
+                            math.round(position.Y * 1000) / 1000,
+                            math.round(position.Z * 1000) / 1000
+                        )
+                        
+                        table.insert(foundItems, {
+                            Name = itemName,
+                            Position = exactPosition,
+                            CFrame = cframe,
+                            Object = obj,
+                            Parent = obj.Parent
+                        })
+                    end
                 end
             end
         end
     end
+    
+    Notify("Farm Event", string.format("Đã tìm thấy %d Bubble!", #foundItems), 2)
+    
     return foundItems
+end
+
+function TeleportToPosition(position, cframe, isWall)
+    if isTeleporting then return end
+    isTeleporting = true
+    
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character then
+        isTeleporting = false
+        return
+    end
+    
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not humanoidRootPart then
+        isTeleporting = false
+        return
+    end
+    
+    if isWall then
+        Notify("Farm Event", "Đang teleport đến tường...", 1)
+    else
+        Notify("Farm Event", "Đang teleport đến Bubble...", 1)
+    end
+    
+    if humanoid:FindFirstChild("Animator") then
+        local animator = humanoid.Animator
+        local emote = Instance.new("Animation")
+        emote.AnimationId = "rbxassetid://5077725058"
+        local emoteTrack = animator:LoadAnimation(emote)
+        emoteTrack:Play()
+        
+        if cframe then
+            humanoidRootPart.CFrame = cframe
+        else
+            humanoidRootPart.CFrame = CFrame.new(position)
+        end
+        
+        task.wait(0.05)
+        emoteTrack:Stop()
+    else
+        if cframe then
+            humanoidRootPart.CFrame = cframe
+        else
+            humanoidRootPart.CFrame = CFrame.new(position)
+        end
+    end
+    
+    task.wait(0.05)
+    isTeleporting = false
+end
+
+function CheckPlayerPosition()
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character then return end
+    
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    if wallModel and humanoidRootPart.Position.Y < -500 then
+        local wallPosition = wallModel:GetPivot().Position
+        TeleportToPosition(Vector3.new(wallPosition.X, wallPosition.Y + 5, wallPosition.Z), nil, true)
+    end
+end
+
+function FarmEvent()
+    if not isFarming then return end
+    
+    local valid, message, validItems = CheckEventItemsList()
+    if not valid then
+        Notify("Farm Event", message, 5)
+        isFarming = false
+        if farmEventToggle then
+            farmEventToggle:SetValue(false)
+        end
+        return
+    end
+    
+    if not wallModel then
+        CreateWall()
+        TeleportToPosition(wallModel:GetPivot().Position + Vector3.new(0, 5, 0), nil, true)
+    end
+    
+    local foundItems = FindEventItems()
+    
+    if #foundItems == 0 then
+        Notify("Farm Event", "Không tìm thấy Bubble nào, đang chờ...", 2)
+        task.wait(1)
+        if isFarming then
+            FarmEvent()
+        end
+        return
+    end
+    
+    local target = foundItems[1]
+    currentTarget = target
+    
+    if target then
+        if isWaitingForItem then
+            if not target.Object or not target.Object.Parent then
+                isWaitingForItem = false
+                retryCount = 0
+                Notify("Farm Event", "Đã nhận được Bubble thành công!", 3)
+            else
+                task.wait(0.5)
+                if isFarming then
+                    FarmEvent()
+                end
+                return
+            end
+        end
+        
+        TeleportToPosition(target.Position, target.CFrame, false)
+        task.wait(0.3)
+        
+        if not target.Object or not target.Object.Parent then
+            Notify("Farm Event", "Đã nhận Bubble thành công!", 2)
+            retryCount = 0
+        else
+            if retryCount < maxRetry then
+                retryCount = retryCount + 1
+                Notify("Farm Event", string.format("Nhận thất bại lần %d, thử lại...", retryCount), 2)
+                task.wait(0.3)
+                TeleportToPosition(target.Position, target.CFrame, false)
+                task.wait(0.3)
+                
+                if not target.Object or not target.Object.Parent then
+                    Notify("Farm Event", "Đã nhận Bubble thành công!", 2)
+                    retryCount = 0
+                else
+                    isWaitingForItem = true
+                    Notify("Farm Event", "Đang chờ Bubble biến mất...", 2)
+                    task.wait(0.5)
+                    if isFarming then
+                        FarmEvent()
+                    end
+                    return
+                end
+            else
+                isWaitingForItem = true
+                Notify("Farm Event", "Đang chờ Bubble biến mất...", 2)
+                task.wait(0.5)
+                if isFarming then
+                    FarmEvent()
+                end
+                return
+            end
+        end
+        
+        if wallModel then
+            local wallPosition = wallModel:GetPivot().Position
+            TeleportToPosition(Vector3.new(wallPosition.X, wallPosition.Y + 5, wallPosition.Z), nil, true)
+        end
+    end
+    
+    CheckPlayerPosition()
+    
+    task.wait(0.3)
+    
+    if isFarming then
+        FarmEvent()
+    end
 end
 
 function StartFarmEvent()
     if isFarming then return end
-    local items = ScanEventItems()
-    if #items == 0 then
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "❌ Từ chối Farm",
-            Text = "Không có sự kiện nào!",
-            Duration = 3
-        })
-        return
-    end
-    
     isFarming = true
+    isWaitingForItem = false
+    retryCount = 0
     CreateWall()
-    
-    farmConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not isFarming then return end
-        local items = ScanEventItems()
-        if #items == 0 then
-            StopFarmEvent()
-            return
-        end
-        for _, item in pairs(items) do
-            if item and item.Parent then
-                humanoidRootPart.CFrame = CFrame.new(item.Position + Vector3.new(0, 2, 0))
-                wait(0.1)
-                if item and item.Parent then
-                    wait(0.5)
-                    humanoidRootPart.CFrame = CFrame.new(item.Position + Vector3.new(0, 2, 0))
-                end
-            end
-        end
-        wait(0.5)
+    task.spawn(function()
+        FarmEvent()
     end)
 end
 
 function StopFarmEvent()
     isFarming = false
-    if farmConnection then
-        farmConnection:Disconnect()
-        farmConnection = nil
+    currentTarget = nil
+    isWaitingForItem = false
+    retryCount = 0
+    if wallModel then
+        wallModel:Destroy()
+        wallModel = nil
+        wallParts = {}
     end
-    if not isFarmingLV then DestroyWall() end
+    Notify("Farm Event", "Đã dừng Farm Event!", 2)
 end
 
-function StartFarmLV()
-    if isFarmingLV then return end
-    isFarmingLV = true
-    CreateWall()
-    
-    farmLVConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not isFarmingLV then return end
-        wait(0.5)
-    end)
-end
-
-function StopFarmLV()
-    isFarmingLV = false
-    if farmLVConnection then
-        farmLVConnection:Disconnect()
-        farmLVConnection = nil
-    end
-    if not isFarming then DestroyWall()
-end
-
-FarmGroup:Toggle({
-    Title = "Farm Event",
-    Desc = "Bật/tắt farm vật phẩm sự kiện",
-    Default = false,
-    Callback = function(state)
-        if state then StartFarmEvent() else StopFarmEvent() end
-    end
-})
-
-FarmGroup:Toggle({
-    Title = "Farm Lv",
-    Desc = "Bật/tắt farm level tự động",
-    Default = false,
-    Callback = function(state)
-        if state then StartFarmLV() else StopFarmLV() end
-    end
-})
-
--- === TAB ANTI ===
-local AntiTab = Window:Tab({
-    Title = "Anti-comprehensive & Sound"
-})
-
-local AntiGroup = AntiTab:Group({
-    Title = "Anti Features",
-    Side = "left"
-})
-
--- === BIẾN ANTI ===
-local isAntiAFK = false
-local isAutoRejoined = false
-local isAntiBanned = false
-local isAntiError = false
-local isSoundDead = false
-local isSoundWin = false
-local isAutoStart = false
-local antiAFKConnection = nil
-local errorCheckConnection = nil
-local soundDeadConnection = nil
-local soundWinConnection = nil
-local lastMoveTime = tick()
-local isDead = false
-local isWin = false
-
-function PlaySound(soundId, volume)
-    if soundId == "none" then return end
-    pcall(function()
-        local sound = Instance.new("Sound")
-        sound.SoundId = "rbxassetid://" .. soundId
-        sound.Volume = volume or 0.8
-        sound.Parent = player
-        sound:Play()
-        game:GetService("Debris"):AddItem(sound, 10)
-    end)
-end
-
-function StartAntiAFK()
-    if isAntiAFK then return end
-    isAntiAFK = true
-    antiAFKConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not isAntiAFK then return end
-        local timeSinceLastMove = tick() - lastMoveTime
-        if timeSinceLastMove > 600 and character and humanoidRootPart then
-            humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position + Vector3.new(0, 0.1, 0))
-            lastMoveTime = tick()
-        end
-    end)
-end
-
-function StopAntiAFK()
-    isAntiAFK = false
-    if antiAFKConnection then
-        antiAFKConnection:Disconnect()
-        antiAFKConnection = nil
-    end
-end
-
-function StartAutoRejoined()
-    if isAutoRejoined then return end
-    isAutoRejoined = true
-    game:GetService("RunService").Heartbeat:Connect(function()
-        if not isAutoRejoined then return end
-        if not game:IsLoaded() or not player then
-            game:GetService("TeleportService"):Teleport(game.PlaceId)
-        end
-    end)
-end
-
-function StopAutoRejoined()
-    isAutoRejoined = false
-end
-
-function StartAntiBanned()
-    if isAntiBanned then return end
-    isAntiBanned = true
-    local bannedDetected = false
-    game:GetService("RunService").Heartbeat:Connect(function()
-        if not isAntiBanned then return end
-        local success = pcall(function()
-            if not player then return end
-            player:GetAttribute("Banned")
-        end)
-        if not success and not bannedDetected then
-            bannedDetected = true
-            game:GetService("TeleportService"):Teleport(game.PlaceId)
-        end
-    end)
-end
-
-function StopAntiBanned()
-    isAntiBanned = false
-end
-
-function StartAntiError()
-    if isAntiError then return end
-    isAntiError = true
-    errorCheckConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not isAntiError then return end
-        local success = pcall(function()
-            if game:GetService("CoreGui"):FindFirstChild("RobloxPromptGui") then
-                local prompts = game:GetService("CoreGui").RobloxPromptGui
-                for _, child in pairs(prompts:GetChildren()) do
-                    if child:IsA("ScreenGui") and child.Enabled then
-                        child.Enabled = false
-                    end
-                end
-            end
-        end)
-        if not success and isAutoRejoined then
-            game:GetService("TeleportService"):Teleport(game.PlaceId)
-        end
-    end)
-end
-
-function StopAntiError()
-    isAntiError = false
-    if errorCheckConnection then
-        errorCheckConnection:Disconnect()
-        errorCheckConnection = nil
-    end
-end
-
-function StartSoundDead()
-    if isSoundDead then return end
-    isSoundDead = true
-    soundDeadConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not isSoundDead then return end
-        pcall(function()
-            if character and character:FindFirstChild("Humanoid") then
-                local humanoid = character.Humanoid
-                local currentHealth = humanoid.Health
-                if currentHealth <= 0 and not isDead then
-                    isDead = true
-                    if CONFIG.SOUND_DEAD_ID ~= "none" then
-                        PlaySound(CONFIG.SOUND_DEAD_ID, 0.8)
-                    end
-                elseif currentHealth > 0 and isDead then
-                    isDead = false
-                end
-            end
-        end)
-    end)
-end
-
-function StopSoundDead()
-    isSoundDead = false
-    if soundDeadConnection then
-        soundDeadConnection:Disconnect()
-        soundDeadConnection = nil
-    end
-end
-
-function StartSoundWin()
-    if isSoundWin then return end
-    isSoundWin = true
-    soundWinConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not isSoundWin then return end
-        pcall(function()
-            if character and character:FindFirstChild("Humanoid") then
-                local humanoid = character.Humanoid
-                local currentHealth = humanoid.Health
-                if isDead and currentHealth > 0 then
-                    isDead = false
-                    isWin = true
-                    if CONFIG.SOUND_WIN_ID ~= "none" then
-                        PlaySound(CONFIG.SOUND_WIN_ID, 0.8)
-                    end
-                    wait(5)
-                    isWin = false
-                end
-                local gameState = game:GetService("Workspace"):FindFirstChild("GameState")
-                if gameState and gameState.Value == "Win" and not isWin then
-                    isWin = true
-                    if CONFIG.SOUND_WIN_ID ~= "none" then
-                        PlaySound(CONFIG.SOUND_WIN_ID, 0.8)
-                    end
-                    wait(5)
-                    isWin = false
-                end
-            end
-        end)
-    end)
-end
-
-function StopSoundWin()
-    isSoundWin = false
-    if soundWinConnection then
-        soundWinConnection:Disconnect()
-        soundWinConnection = nil
-    end
-end
-
-AntiGroup:Toggle({
-    Title = "Anti-AFK",
-    Desc = "Chống mã lỗi 20 phút",
-    Default = false,
-    Callback = function(state)
-        if state then StartAntiAFK() else StopAntiAFK() end
-    end
-})
-
-AntiGroup:Toggle({
-    Title = "Auto Rejoined",
-    Desc = "Tự động tham gia lại nếu gặp mã lỗi",
-    Default = false,
-    Callback = function(state)
-        if state then StartAutoRejoined() else StopAutoRejoined() end
-    end
-})
-
-AntiGroup:Toggle({
-    Title = "Anti-Banned",
-    Desc = "Chống banned từ server",
-    Default = false,
-    Callback = function(state)
-        if state then StartAntiBanned() else StopAntiBanned() end
-    end
-})
-
-AntiGroup:Toggle({
-    Title = "Anti-Error code",
-    Desc = "Chống tất cả mã lỗi",
-    Default = false,
-    Callback = function(state)
-        if state then StartAntiError() else StopAntiError() end
-    end
-})
-
-AntiGroup:Toggle({
-    Title = "Sound Dead/Defeated",
-    Desc = "Phát nhạc khi chết/hạ gục",
-    Default = false,
-    Callback = function(state)
-        if state then StartSoundDead() else StopSoundDead() end
-    end
-})
-
-AntiGroup:Toggle({
-    Title = "Sound Survive/Win",
-    Desc = "Phát nhạc khi thắng/sống sót",
-    Default = false,
-    Callback = function(state)
-        if state then StartSoundWin() else StopSoundWin() end
-    end
-})
-
-AntiGroup:Toggle({
-    Title = "Auto Start the script",
-    Desc = "Tự động khởi động lại script nếu bị kick",
-    Default = false,
-    Callback = function(state)
-        isAutoStart = state
-    end
-})
-
--- === TAB SERVER ===
-local ServerTab = Window:Tab({
-    Title = "Server & Players"
-})
-
-local ServerGroup = ServerTab:Group({
-    Title = "Server Manager",
-    Side = "left"
-})
-
-local playerCountLabel = ServerGroup:Label({
-    Title = "Players in the server: 0"
-})
-
-local maxPlayersLabel = ServerGroup:Label({
-    Title = "Max players: 0"
-})
-
-local function UpdatePlayerCount()
-    local players = game:GetService("Players"):GetPlayers()
-    local maxPlayers = game:GetService("Players").MaxPlayers
-    playerCountLabel:Update("Players in the server: " .. #players)
-    maxPlayersLabel:Update("Max players: " .. maxPlayers)
-end
-
-UpdatePlayerCount()
-game:GetService("Players").PlayerAdded:Connect(UpdatePlayerCount)
-game:GetService("Players").PlayerRemoving:Connect(UpdatePlayerCount)
-
-function ServerHop()
-    local currentPlaceId = game.PlaceId
-    local success, result = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(
-            game:HttpGet("https://games.roblox.com/v1/games/" .. currentPlaceId .. "/servers/Public?limit=100")
-        )
-    end)
-    if not success or not result or not result.data then return end
-    local lowestPlayers = math.huge
-    local bestServer = nil
-    for _, server in pairs(result.data) do
-        if server.playing < server.maxPlayers and server.playing < lowestPlayers then
-            lowestPlayers = server.playing
-            bestServer = server
-        end
-    end
-    if bestServer then
-        game:GetService("TeleportService"):TeleportToPlaceInstance(currentPlaceId, bestServer.id, player)
-    end
-end
-
-function ServerFull()
-    local currentPlaceId = game.PlaceId
-    local success, result = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(
-            game:HttpGet("https://games.roblox.com/v1/games/" .. currentPlaceId .. "/servers/Public?limit=100")
-        )
-    end)
-    if not success or not result or not result.data then return end
-    local highestPlayers = -1
-    local bestServer = nil
-    for _, server in pairs(result.data) do
-        if server.playing < server.maxPlayers and server.playing > highestPlayers then
-            highestPlayers = server.playing
-            bestServer = server
-        end
-    end
-    if bestServer then
-        game:GetService("TeleportService"):TeleportToPlaceInstance(currentPlaceId, bestServer.id, player)
-    end
-end
-
-function RejoinedServer()
-    game:GetService("TeleportService"):Teleport(game.PlaceId)
-end
-
-function RandomServer()
-    local currentPlaceId = game.PlaceId
-    local success, result = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(
-            game:HttpGet("https://games.roblox.com/v1/games/" .. currentPlaceId .. "/servers/Public?limit=100")
-        )
-    end)
-    if not success or not result or not result.data then return end
-    local availableServers = {}
-    for _, server in pairs(result.data) do
-        if server.playing < server.maxPlayers then
-            table.insert(availableServers, server)
-        end
-    end
-    if #availableServers > 0 then
-        local randomServer = availableServers[math.random(1, #availableServers)]
-        game:GetService("TeleportService"):TeleportToPlaceInstance(currentPlaceId, randomServer.id, player)
-    end
-end
-
-ServerGroup:Button({
-    Title = "Server Hop",
-    Desc = "Tìm máy chủ ít người chơi nhất",
-    Callback = function()
-        pcall(ServerHop)
-    end
-})
-
-ServerGroup:Button({
-    Title = "Server Full",
-    Desc = "Tìm máy chủ gần full người chơi",
-    Callback = function()
-        pcall(ServerFull)
-    end
-})
-
-ServerGroup:Button({
-    Title = "Rejoined Server",
-    Desc = "Vào lại máy chủ đã ở trước đó",
-    Callback = function()
-        pcall(RejoinedServer)
-    end
-})
-
-ServerGroup:Button({
-    Title = "Random Server",
-    Desc = "Tìm server ngẫu nhiên không full",
-    Callback = function()
-        pcall(RandomServer)
-    end
-})
-
--- === TAB SETTINGS ===
-local SettingsTab = Window:Tab({
-    Title = "Settings"
-})
-
-local SettingsGroup = SettingsTab:Group({
-    Title = "Settings",
-    Side = "left"
-})
-
--- === FPS ===
-local isShowFPS = false
-local fpsGUI = nil
-local fpsLabel = nil
-
-function CreateFPSGUI()
-    if fpsGUI then
-        fpsGUI:Destroy()
-        fpsGUI = nil
-        fpsLabel = nil
+-- ===== FARM LV =====
+function CreateWallLv()
+    if wallModelLv then
+        wallModelLv:Destroy()
+        wallModelLv = nil
+        wallPartsLv = {}
     end
     
-    fpsGUI = Instance.new("ScreenGui")
-    fpsGUI.Name = "FPSDisplay"
-    fpsGUI.Parent = player:WaitForChild("PlayerGui")
-    fpsGUI.ResetOnSpawn = false
+    Notify("Farm Lv", "Đang tạo tường...", 2)
     
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 100, 0, 50)
-    frame.Position = UDim2.new(1, -110, 0, 10)
-    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    frame.BorderSizePixel = 0
-    frame.Parent = fpsGUI
+    wallModelLv = Instance.new("Model")
+    wallModelLv.Name = "FarmWallLv"
     
-    local uiStroke = Instance.new("UIStroke")
-    uiStroke.Color = Color3.fromRGB(255, 0, 0)
-    uiStroke.Thickness = 2
-    uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    uiStroke.Parent = frame
+    local wallPosition = Vector3.new(0, -800, 0)
     
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = frame
+    local wall = Instance.new("Part")
+    wall.Size = Vector3.new(100, 10, 1)
+    wall.Position = wallPosition
+    wall.Anchored = true
+    wall.CanCollide = true
+    wall.Transparency = 0
+    wall.BrickColor = BrickColor.new("White")
+    wall.Material = Enum.Material.SmoothPlastic
+    wall.Parent = wallModelLv
     
-    fpsLabel = Instance.new("TextLabel")
-    fpsLabel.Size = UDim2.new(1, 0, 1, 0)
-    fpsLabel.BackgroundTransparency = 1
-    fpsLabel.Text = "FPS: 0"
-    fpsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    fpsLabel.TextSize = 18
-    fpsLabel.Font = Enum.Font.GothamBold
-    fpsLabel.Parent = frame
-    
-    spawn(function()
-        local hue = 0
-        while fpsGUI and fpsGUI.Parent do
-            hue = (hue + 0.01) % 1
-            uiStroke.Color = Color3.fromHSV(hue, 1, 1)
-            wait(0.05)
-        end
-    end)
-    
-    spawn(function()
-        local lastTime = tick()
-        local frameCount = 0
-        while fpsGUI and fpsGUI.Parent do
-            frameCount = frameCount + 1
-            local currentTime = tick()
-            if currentTime - lastTime >= 1 then
-                if fpsLabel then
-                    fpsLabel.Text = "FPS: " .. frameCount
-                end
-                frameCount = 0
-                lastTime = currentTime
-            end
-            wait()
-        end
-    end)
-end
-
-function DestroyFPSGUI()
-    if fpsGUI then
-        fpsGUI:Destroy()
-        fpsGUI = nil
-        fpsLabel = nil
+    for i = -8, 8 do
+        local extraWall = wall:Clone()
+        extraWall.Position = wallPosition + Vector3.new(i * 100, 0, 0)
+        extraWall.Parent = wallModelLv
+        table.insert(wallPartsLv, extraWall)
     end
+    
+    wallModelLv.Parent = game.Workspace
+    
+    Notify("Farm Lv", "Tường đã được tạo thành công!", 2)
+    
+    return wallModelLv
 end
 
-SettingsGroup:Toggle({
-    Title = "Show Fps",
-    Desc = "Hiển thị FPS thật của người dùng",
-    Default = false,
-    Callback = function(state)
-        isShowFPS = state
-        if state then
-            CreateFPSGUI()
+function TeleportToPositionLv(position, cframe, isWall)
+    if isTeleportingLv then return end
+    isTeleportingLv = true
+    
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character then
+        isTeleportingLv = false
+        return
+    end
+    
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not humanoidRootPart then
+        isTeleportingLv = false
+        return
+    end
+    
+    if isWall then
+        Notify("Farm Lv", "Đang teleport đến tường...", 1)
+    end
+    
+    if humanoid:FindFirstChild("Animator") then
+        local animator = humanoid.Animator
+        local emote = Instance.new("Animation")
+        emote.AnimationId = "rbxassetid://5077725058"
+        local emoteTrack = animator:LoadAnimation(emote)
+        emoteTrack:Play()
+        
+        if cframe then
+            humanoidRootPart.CFrame = cframe
         else
-            DestroyFPSGUI()
+            humanoidRootPart.CFrame = CFrame.new(position)
+        end
+        
+        task.wait(0.05)
+        emoteTrack:Stop()
+    else
+        if cframe then
+            humanoidRootPart.CFrame = cframe
+        else
+            humanoidRootPart.CFrame = CFrame.new(position)
         end
     end
-})
+    
+    task.wait(0.05)
+    isTeleportingLv = false
+end
 
--- === THEMES ===
-local THEMES = {
-    "Dark", "Light", "Rose", "Plant", "Red", "Indigo",
-    "Sky", "Violet", "Amber", "Emerald", "Midnight",
-    "Crimson", "Monokai Pro", "Cotton Candy", "Mellowsi", "Rainbow"
-}
-
-local selectedTheme = "Dark"
-
-SettingsGroup:Dropdown({
-    Title = "Chọn Theme",
-    Desc = "Chọn theme cho WindUI Library",
-    Default = "Dark",
-    Options = THEMES,
-    Callback = function(option)
-        selectedTheme = option
+function CheckPlayerPositionLv()
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character then return end
+    
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    if wallModelLv and humanoidRootPart.Position.Y < -500 then
+        local wallPosition = wallModelLv:GetPivot().Position
+        TeleportToPositionLv(Vector3.new(wallPosition.X, wallPosition.Y + 5, wallPosition.Z), nil, true)
     end
-})
+end
 
-SettingsGroup:Button({
-    Title = "Đặt Theme",
-    Desc = "Áp dụng theme và khởi động lại",
-    Callback = function()
-        if Window and Window.MainFrame then
-            Window.MainFrame:Destroy()
+function FarmLv()
+    if not isFarmingLv then return end
+    
+    if not wallModelLv then
+        CreateWallLv()
+    end
+    
+    if wallModelLv then
+        local wallPosition = wallModelLv:GetPivot().Position
+        TeleportToPositionLv(Vector3.new(wallPosition.X, wallPosition.Y + 5, wallPosition.Z), nil, true)
+        Notify("Farm Lv", "Đang đứng tại tường chờ phần thưởng...", 3)
+    end
+    
+    while isFarmingLv do
+        task.wait(5)
+        
+        local notifications = game:GetService("StarterGui"):GetChildren()
+        for _, notif in ipairs(notifications) do
+            if notif:IsA("ScreenGui") and notif:FindFirstChild("Timer") then
+                local timer = notif.Timer
+                if timer and timer.Text and string.find(timer.Text, "Hết thời gian") then
+                    Notify("Farm Lv", "Đã hết thời gian!", 3)
+                    
+                    local rewards = game:GetService("ReplicatedStorage"):FindFirstChild("Rewards")
+                    if rewards then
+                        local playerReward = rewards:FindFirstChild(game.Players.LocalPlayer.Name)
+                        if playerReward then
+                            Notify("Farm Lv", string.format("Phần thưởng của bạn: %s", playerReward.Value), 5)
+                        end
+                    end
+                    break
+                end
+            end
         end
-        wait(1)
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
+        
+        CheckPlayerPositionLv()
     end
-})
+end
 
-SettingsGroup:Button({
-    Title = "Restart the script",
-    Desc = "Khởi động lại script",
-    Callback = function()
-        if Window and Window.MainFrame then
-            Window.MainFrame:Destroy()
+function StartFarmLv()
+    if isFarmingLv then return end
+    isFarmingLv = true
+    CreateWallLv()
+    task.spawn(function()
+        FarmLv()
+    end)
+end
+
+function StopFarmLv()
+    isFarmingLv = false
+    if wallModelLv then
+        wallModelLv:Destroy()
+        wallModelLv = nil
+        wallPartsLv = {}
+    end
+    Notify("Farm Lv", "Đã dừng Farm Lv!", 2)
+end
+
+-- ===== TẠO TOGGLE TRONG UI (GEN2) =====
+local farmEventToggle = farmTab:CreateToggle({
+    name = "Farm Event",
+    flag = "FarmEventToggle",
+    callback = function(value)
+        if value then
+            StartFarmEvent()
+        else
+            StopFarmEvent()
         end
-        wait(1)
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/PhongScriptDev/Script_Evade/refs/heads/main/NexusHub.lua"))()
-    end
+    end,
 })
 
-SettingsGroup:Button({
-    Title = "Destroy the UI",
-    Desc = "Xóa UI",
-    Callback = function()
-        if Window and Window.MainFrame then
-            Window.MainFrame:Destroy()
+local farmLvToggle = farmTab:CreateToggle({
+    name = "Farm Lv",
+    flag = "FarmLvToggle",
+    callback = function(value)
+        if value then
+            StartFarmLv()
+        else
+            StopFarmLv()
         end
-        DestroyFPSGUI()
-    end
+    end,
 })
 
-print("✅ Nexus Hub đã tải thành công!")
+-- ===== XỬ LÝ LOAD MAP =====
+game:GetService("Players").LocalPlayer:GetPropertyChangedSignal("LoadCharacter"):Connect(function()
+    if isFarming then
+        task.wait(2)
+        CreateWall()
+        TeleportToPosition(wallModel:GetPivot().Position + Vector3.new(0, 5, 0), nil, true)
+    end
+    
+    if isFarmingLv then
+        task.wait(2)
+        CreateWallLv()
+        TeleportToPositionLv(wallModelLv:GetPivot().Position + Vector3.new(0, 5, 0), nil, true)
+    end
+end)
+
+-- ===== KIỂM TRA VỊ TRÍ =====
+game:GetService("RunService").Heartbeat:Connect(function()
+    if isFarming then
+        CheckPlayerPosition()
+    end
+    
+    if isFarmingLv then
+        CheckPlayerPositionLv()
+    end
+end)
+
+print("Farm Handmade Pro đã được tải thành công!")
+print("Sử dụng Rayfield Gen2 - Nhấn RightControl để mở UI")
