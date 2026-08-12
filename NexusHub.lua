@@ -145,7 +145,29 @@ local function Notify(title, message, duration)
     end)
 end
 
--- ===== FARM EVENT - TẠO TƯỜNG PHẲNG MÀU TRẮNG ĐẬM =====
+-- ===== TẠO TƯỜNG CHUNG =====
+local function CreateWallCommon(modelName, wallColor)
+    local model = Instance.new("Model")
+    model.Name = modelName
+    
+    local wallPosition = Vector3.new(0, -800, 0)
+    
+    local wall = Instance.new("Part")
+    wall.Size = Vector3.new(300, 1, 300)
+    wall.Position = wallPosition
+    wall.Anchored = true
+    wall.CanCollide = true
+    wall.Transparency = 0
+    wall.BrickColor = BrickColor.new(wallColor or "Medium stone grey")
+    wall.Material = Enum.Material.SmoothPlastic
+    wall.Parent = model
+    
+    model.Parent = game.Workspace
+    
+    return model, wallPosition
+end
+
+-- ===== FARM EVENT - TẠO TƯỜNG =====
 local function CreateWall()
     pcall(function()
         if wallModel then
@@ -156,23 +178,7 @@ local function CreateWall()
     
     Notify("Farm Event", "Đang tạo tường...", 2)
     
-    wallModel = Instance.new("Model")
-    wallModel.Name = "FarmWall"
-    
-    local wallPosition = Vector3.new(0, -800, 0)
-    
-    -- Tạo tường phẳng màu trắng đậm (không quá trắng)
-    local wall = Instance.new("Part")
-    wall.Size = Vector3.new(300, 1, 300)
-    wall.Position = wallPosition
-    wall.Anchored = true
-    wall.CanCollide = true
-    wall.Transparency = 0
-    wall.BrickColor = BrickColor.new("Medium stone grey") -- Màu trắng đậm
-    wall.Material = Enum.Material.SmoothPlastic
-    wall.Parent = wallModel
-    
-    wallModel.Parent = game.Workspace
+    wallModel, _ = CreateWallCommon("FarmWall", "Medium stone grey")
     
     Notify("Farm Event", "Tường đã được tạo!", 2)
     
@@ -181,13 +187,41 @@ local function CreateWall()
     if player and player.Character then
         local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
         if humanoidRootPart then
-            humanoidRootPart.CFrame = CFrame.new(wallPosition + Vector3.new(0, 1, 0))
+            humanoidRootPart.CFrame = CFrame.new(Vector3.new(0, -800, 0) + Vector3.new(0, 1, 0))
             isOnWall = true
             Notify("Farm Event", "Đã teleport lên tường!", 2)
         end
     end
     
     return wallModel
+end
+
+-- ===== FARM LV - TẠO TƯỜNG =====
+local function CreateWallLv()
+    pcall(function()
+        if wallModelLv then
+            wallModelLv:Destroy()
+            wallModelLv = nil
+        end
+    end)
+    
+    Notify("Farm Lv", "Đang tạo tường...", 2)
+    
+    wallModelLv, _ = CreateWallCommon("FarmWallLv", "Medium stone grey")
+    
+    Notify("Farm Lv", "Tường đã được tạo!", 2)
+    
+    -- Teleport người chơi lên tường
+    local player = game.Players.LocalPlayer
+    if player and player.Character then
+        local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+        if humanoidRootPart then
+            humanoidRootPart.CFrame = CFrame.new(Vector3.new(0, -800, 0) + Vector3.new(0, 1, 0))
+            Notify("Farm Lv", "Đã teleport lên tường!", 2)
+        end
+    end
+    
+    return wallModelLv
 end
 
 -- ===== FARM EVENT - KIỂM TRA DANH SÁCH =====
@@ -353,7 +387,7 @@ local function CheckIfFallOffWall()
     end
 end
 
--- ===== FARM EVENT - MAIN LOOP =====
+-- ===== FARM EVENT - MAIN LOOP (QUÉT VÀ TELEPORT ĐẾN VẬT PHẨM) =====
 local function FarmEventLoop()
     if not isFarming then return end
     
@@ -506,47 +540,27 @@ local function StopFarmEvent()
     Notify("Farm Event", "Đã dừng Farm Event!", 2)
 end
 
--- ===== FARM LV =====
-local function CreateWallLv()
-    pcall(function()
-        if wallModelLv then
-            wallModelLv:Destroy()
-            wallModelLv = nil
-        end
-    end)
-    
-    Notify("Farm Lv", "Đang tạo tường...", 2)
-    
-    wallModelLv = Instance.new("Model")
-    wallModelLv.Name = "FarmWallLv"
-    
-    local wallPosition = Vector3.new(0, -800, 0)
-    
-    local wall = Instance.new("Part")
-    wall.Size = Vector3.new(300, 1, 300)
-    wall.Position = wallPosition
-    wall.Anchored = true
-    wall.CanCollide = true
-    wall.Transparency = 0
-    wall.BrickColor = BrickColor.new("Medium stone grey")
-    wall.Material = Enum.Material.SmoothPlastic
-    wall.Parent = wallModelLv
-    
-    wallModelLv.Parent = game.Workspace
-    
+-- ===== FARM LV - PHÁT HIỆN NGƯỜI DÙNG XUỐNG TƯỜNG =====
+local function CheckIfFallOffWallLv()
     local player = game.Players.LocalPlayer
-    if player and player.Character then
-        local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
-        if humanoidRootPart then
-            humanoidRootPart.CFrame = CFrame.new(wallPosition + Vector3.new(0, 1, 0))
-        end
+    if not player or not player.Character then return end
+    
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    if not wallModelLv then return end
+    
+    local wallPosition = wallModelLv:GetPivot().Position
+    local posY = humanoidRootPart.Position.Y
+    
+    if posY < wallPosition.Y - 2 then
+        Notify("Farm Lv", "Phát hiện đã xuống tường! Đang teleport lại...", 2)
+        TeleportToPositionLv(Vector3.new(wallPosition.X, wallPosition.Y + 1, wallPosition.Z), nil, true)
+        task.wait(0.5)
     end
-    
-    Notify("Farm Lv", "Tường đã được tạo!", 2)
-    
-    return wallModelLv
 end
 
+-- ===== FARM LV - TELEPORT CÓ EMOTE =====
 local function TeleportToPositionLv(position, cframe, isWall)
     if isTeleportingLv then return end
     isTeleportingLv = true
@@ -598,25 +612,7 @@ local function TeleportToPositionLv(position, cframe, isWall)
     isTeleportingLv = false
 end
 
-local function CheckIfFallOffWallLv()
-    local player = game.Players.LocalPlayer
-    if not player or not player.Character then return end
-    
-    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return end
-    
-    if not wallModelLv then return end
-    
-    local wallPosition = wallModelLv:GetPivot().Position
-    local posY = humanoidRootPart.Position.Y
-    
-    if posY < wallPosition.Y - 2 then
-        Notify("Farm Lv", "Phát hiện đã xuống tường! Đang teleport lại...", 2)
-        TeleportToPositionLv(Vector3.new(wallPosition.X, wallPosition.Y + 1, wallPosition.Z), nil, true)
-        task.wait(0.5)
-    end
-end
-
+-- ===== FARM LV - MAIN LOOP (CHỈ ĐỨNG TRÊN TƯỜNG) =====
 local function FarmLvLoop()
     if not isFarmingLv then return end
     
@@ -631,10 +627,12 @@ local function FarmLvLoop()
         Notify("Farm Lv", "Đang đứng tại tường chờ phần thưởng...", 3)
     end
     
+    -- FARM LV: CHỈ ĐỨNG TRÊN TƯỜNG, KHÔNG QUÉT, KHÔNG TELEPORT ĐI ĐÂU CẢ
     while isFarmingLv do
         task.wait(5)
         CheckIfFallOffWallLv()
         
+        -- Kiểm tra hết thời gian và phần thưởng
         pcall(function()
             local notifications = game:GetService("StarterGui"):GetChildren()
             for _, notif in ipairs(notifications) do
