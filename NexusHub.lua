@@ -1,25 +1,49 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
 
--- ===== PHÁT NHẠC KHI KHỞI ĐỘNG =====
-local function PlayStartupMusic()
-    local soundId = "rbxassetid://79277371759525" -- Thay ID nhạc của bạn vào đây
+-- ===== ĐẶT POP UP VÀ PHÁT NHẠC Ở ĐÂY (CHÍNH GIỮA LOAD RAYFIELD VÀ TẠO WINDOW) =====
+-- Hàm tạo Popup và phát nhạc
+local function ShowMusicPopup()
+    local soundId = "rbxassetid://119589720384457" -- Thay ID nhạc của bạn vào đây
     
-    local sound = Instance.new("Sound")
-    sound.SoundId = soundId
-    sound.Volume = 10
-    sound.Looped = false
-    sound.Parent = game.Workspace
-    
-    sound:Play()
-    
-    sound.Ended:Connect(function()
-        sound:Destroy()
+    pcall(function()
+        -- Tạo Popup trước
+        local popup = Rayfield:Popup({
+            title = "🎵 Phát nhạc",
+            content = "Bạn có muốn bật nhạc nền không?",
+            options = {
+                { 
+                    text = "🎶 Bật nhạc", 
+                    style = "primary",
+                    callback = function()
+                        -- Phát nhạc khi ấn nút
+                        local sound = Instance.new("Sound")
+                        sound.SoundId = soundId
+                        sound.Volume = 0.5
+                        sound.Looped = false
+                        sound.Parent = game.Workspace
+                        sound:Play()
+                        
+                        -- Thông báo đang phát nhạc (sẽ dùng Notify sau khi có window)
+                        print("🎵 Đang phát nhạc...")
+                        
+                        sound.Ended:Connect(function()
+                            sound:Destroy()
+                        end)
+                    end
+                },
+                { 
+                    text = "🔇 Tắt nhạc",
+                    callback = function()
+                        print("🔇 Đã tắt nhạc")
+                    end
+                },
+            },
+        })
     end)
-    
-    print("Đã phát nhạc chào mừng!")
 end
 
-PlayStartupMusic()
+-- Gọi Popup ngay tại đây (chính giữa Load Rayfield và TẠO WINDOW)
+ShowMusicPopup()
 
 
 local window = Rayfield:CreateWindow({
