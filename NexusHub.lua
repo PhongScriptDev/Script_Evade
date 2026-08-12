@@ -42,55 +42,44 @@ local versionTag = window:CreateTag({
     color = Color3.fromRGB(100, 200, 255),
 })
 
--- ===== TẠO TAG VERSION =====
-local versionTag = window:CreateTag({
-    text = "⚡ Version: 2.1.7",
-    color = Color3.fromRGB(100, 200, 255),
-})
-
 -- ===== TẠO TAG FPS =====
 local fpsTag = window:CreateTag({
     text = "FPS: 0",
-    color = Color3.fromRGB(80, 200, 120), -- Màu xanh lá mặc định
+    color = Color3.fromRGB(80, 200, 120),
 })
 
--- ===== HÀM CẬP NHẬT FPS TAG =====
+-- ===== HÀM CẬP NHẬT FPS =====
 local function UpdateFpsTag()
     local lastTime = tick()
     local frameCount = 0
-    local fps = 0
     
     game:GetService("RunService").Heartbeat:Connect(function()
         frameCount = frameCount + 1
         local currentTime = tick()
         local deltaTime = currentTime - lastTime
         
-        if deltaTime >= 0.5 then -- Cập nhật mỗi 0.5 giây để chính xác hơn
-            fps = frameCount / deltaTime
+        if deltaTime >= 0.5 then
+            local fps = frameCount / deltaTime
             frameCount = 0
             lastTime = currentTime
             
-            -- Làm tròn FPS chính xác
             local roundedFps = math.floor(fps + 0.5)
             
-            -- Cập nhật màu dựa trên FPS
             local color
             if roundedFps >= 55 then
-                -- Rất mượt - Xanh lá
                 color = Color3.fromRGB(80, 200, 120)
             elseif roundedFps >= 40 and roundedFps < 55 then
-                -- Ổn - Cam
                 color = Color3.fromRGB(255, 175, 15)
             else
-                -- Kém - Đỏ
                 color = Color3.fromRGB(255, 50, 50)
             end
             
-            -- Cập nhật tag với FPS chính xác và màu tương ứng
-            fpsTag:Set({
-                text = "FPS: " .. roundedFps,
-                color = color
-            })
+            pcall(function()
+                fpsTag:Set({
+                    text = "FPS: " .. roundedFps,
+                    color = color
+                })
+            end)
         end
     end)
 end
@@ -114,8 +103,10 @@ local retryCount = 0
 local maxRetry = 2
 local isWaitingForItem = false
 local currentTarget = nil
+local farmEventToggle = nil
+local farmLvToggle = nil
 
--- Danh sách 20 vật phẩm (1 Bubble, 19 none)
+-- Danh sách 20 vật phẩm
 local EventItems = {
     "Bubble",
     "none",
@@ -139,22 +130,26 @@ local EventItems = {
     "none"
 }
 
--- ===== HÀM THÔNG BÁO RAYFIELD =====
-function Notify(title, message, duration)
+-- ===== HÀM THÔNG BÁO =====
+local function Notify(title, message, duration)
     duration = duration or 3
-    Rayfield:Notify({
-        Title = title,
-        Text = message,
-        Duration = duration,
-    })
+    pcall(function()
+        Rayfield:Notify({
+            Title = title,
+            Text = message,
+            Duration = duration,
+        })
+    end)
 end
 
--- ===== FARM EVENT - TẠO TƯỜNG =====
-function CreateWall()
-    if wallModel then
-        wallModel:Destroy()
-        wallModel = nil
-    end
+-- ===== FARM EVENT =====
+local function CreateWall()
+    pcall(function()
+        if wallModel then
+            wallModel:Destroy()
+            wallModel = nil
+        end
+    end)
     
     Notify("Farm Event", "Đang tạo tường...", 2)
     
@@ -195,8 +190,7 @@ function CreateWall()
     return wallModel
 end
 
--- ===== FARM EVENT - KIỂM TRA DANH SÁCH =====
-function CheckEventItemsList()
+local function CheckEventItemsList()
     local validItems = {}
     local noneCount = 0
     
@@ -215,8 +209,7 @@ function CheckEventItemsList()
     return true, "Đang tìm Bubble...", validItems
 end
 
--- ===== FARM EVENT - TÌM VẬT PHẨM (QUÉT TOÀN SERVER) =====
-function FindEventItems()
+local function FindEventItems()
     local foundItems = {}
     local valid, _, validItems = CheckEventItemsList()
     
@@ -266,8 +259,7 @@ function FindEventItems()
     return foundItems
 end
 
--- ===== FARM EVENT - TELEPORT CÓ EMOTE =====
-function TeleportToPosition(position, cframe, isWall)
+local function TeleportToPosition(position, cframe, isWall)
     if isTeleporting then return end
     isTeleporting = true
     
@@ -291,35 +283,36 @@ function TeleportToPosition(position, cframe, isWall)
         Notify("Farm Event", "Đang teleport đến Bubble...", 1)
     end
     
-    if humanoid:FindFirstChild("Animator") then
-        local animator = humanoid.Animator
-        local emote = Instance.new("Animation")
-        emote.AnimationId = "rbxassetid://5077725058"
-        local emoteTrack = animator:LoadAnimation(emote)
-        emoteTrack:Play()
-        
-        if cframe then
-            humanoidRootPart.CFrame = cframe
+    pcall(function()
+        if humanoid:FindFirstChild("Animator") then
+            local animator = humanoid.Animator
+            local emote = Instance.new("Animation")
+            emote.AnimationId = "rbxassetid://5077725058"
+            local emoteTrack = animator:LoadAnimation(emote)
+            emoteTrack:Play()
+            
+            if cframe then
+                humanoidRootPart.CFrame = cframe
+            else
+                humanoidRootPart.CFrame = CFrame.new(position)
+            end
+            
+            task.wait(0.05)
+            emoteTrack:Stop()
         else
-            humanoidRootPart.CFrame = CFrame.new(position)
+            if cframe then
+                humanoidRootPart.CFrame = cframe
+            else
+                humanoidRootPart.CFrame = CFrame.new(position)
+            end
         end
-        
-        task.wait(0.05)
-        emoteTrack:Stop()
-    else
-        if cframe then
-            humanoidRootPart.CFrame = cframe
-        else
-            humanoidRootPart.CFrame = CFrame.new(position)
-        end
-    end
+    end)
     
     task.wait(0.05)
     isTeleporting = false
 end
 
--- ===== FARM EVENT - KIỂM TRA VỊ TRÍ =====
-function CheckPlayerPosition()
+local function CheckPlayerPosition()
     local player = game.Players.LocalPlayer
     if not player or not player.Character then return end
     
@@ -332,16 +325,17 @@ function CheckPlayerPosition()
     end
 end
 
--- ===== FARM EVENT - MAIN LOOP =====
-function FarmEvent()
+local function FarmEventLoop()
     if not isFarming then return end
     
-    local valid, message, validItems = CheckEventItemsList()
+    local valid, message = CheckEventItemsList()
     if not valid then
         Notify("Farm Event", message, 5)
         isFarming = false
         if farmEventToggle then
-            farmEventToggle:SetValue(false)
+            pcall(function()
+                farmEventToggle:SetValue(false)
+            end)
         end
         return
     end
@@ -357,7 +351,7 @@ function FarmEvent()
         Notify("Farm Event", "Không tìm thấy Bubble nào, đang chờ...", 2)
         task.wait(1)
         if isFarming then
-            FarmEvent()
+            FarmEventLoop()
         end
         return
     end
@@ -374,7 +368,7 @@ function FarmEvent()
             else
                 task.wait(0.5)
                 if isFarming then
-                    FarmEvent()
+                    FarmEventLoop()
                 end
                 return
             end
@@ -402,7 +396,7 @@ function FarmEvent()
                     Notify("Farm Event", "Đang chờ Bubble biến mất...", 2)
                     task.wait(0.5)
                     if isFarming then
-                        FarmEvent()
+                        FarmEventLoop()
                     end
                     return
                 end
@@ -411,7 +405,7 @@ function FarmEvent()
                 Notify("Farm Event", "Đang chờ Bubble biến mất...", 2)
                 task.wait(0.5)
                 if isFarming then
-                    FarmEvent()
+                    FarmEventLoop()
                 end
                 return
             end
@@ -427,41 +421,42 @@ function FarmEvent()
     task.wait(0.3)
     
     if isFarming then
-        FarmEvent()
+        FarmEventLoop()
     end
 end
 
--- ===== FARM EVENT - START/STOP =====
-function StartFarmEvent()
+local function StartFarmEvent()
     if isFarming then return end
     isFarming = true
     isWaitingForItem = false
     retryCount = 0
     CreateWall()
     task.wait(1)
-    task.spawn(function()
-        FarmEvent()
-    end)
+    task.spawn(FarmEventLoop)
 end
 
-function StopFarmEvent()
+local function StopFarmEvent()
     isFarming = false
     currentTarget = nil
     isWaitingForItem = false
     retryCount = 0
-    if wallModel then
-        wallModel:Destroy()
-        wallModel = nil
-    end
+    pcall(function()
+        if wallModel then
+            wallModel:Destroy()
+            wallModel = nil
+        end
+    end)
     Notify("Farm Event", "Đã dừng Farm Event!", 2)
 end
 
 -- ===== FARM LV =====
-function CreateWallLv()
-    if wallModelLv then
-        wallModelLv:Destroy()
-        wallModelLv = nil
-    end
+local function CreateWallLv()
+    pcall(function()
+        if wallModelLv then
+            wallModelLv:Destroy()
+            wallModelLv = nil
+        end
+    end)
     
     Notify("Farm Lv", "Đang tạo tường...", 2)
     
@@ -501,7 +496,7 @@ function CreateWallLv()
     return wallModelLv
 end
 
-function TeleportToPositionLv(position, cframe, isWall)
+local function TeleportToPositionLv(position, cframe, isWall)
     if isTeleportingLv then return end
     isTeleportingLv = true
     
@@ -523,34 +518,36 @@ function TeleportToPositionLv(position, cframe, isWall)
         Notify("Farm Lv", "Đang teleport đến tường...", 1)
     end
     
-    if humanoid:FindFirstChild("Animator") then
-        local animator = humanoid.Animator
-        local emote = Instance.new("Animation")
-        emote.AnimationId = "rbxassetid://5077725058"
-        local emoteTrack = animator:LoadAnimation(emote)
-        emoteTrack:Play()
-        
-        if cframe then
-            humanoidRootPart.CFrame = cframe
+    pcall(function()
+        if humanoid:FindFirstChild("Animator") then
+            local animator = humanoid.Animator
+            local emote = Instance.new("Animation")
+            emote.AnimationId = "rbxassetid://5077725058"
+            local emoteTrack = animator:LoadAnimation(emote)
+            emoteTrack:Play()
+            
+            if cframe then
+                humanoidRootPart.CFrame = cframe
+            else
+                humanoidRootPart.CFrame = CFrame.new(position)
+            end
+            
+            task.wait(0.05)
+            emoteTrack:Stop()
         else
-            humanoidRootPart.CFrame = CFrame.new(position)
+            if cframe then
+                humanoidRootPart.CFrame = cframe
+            else
+                humanoidRootPart.CFrame = CFrame.new(position)
+            end
         end
-        
-        task.wait(0.05)
-        emoteTrack:Stop()
-    else
-        if cframe then
-            humanoidRootPart.CFrame = cframe
-        else
-            humanoidRootPart.CFrame = CFrame.new(position)
-        end
-    end
+    end)
     
     task.wait(0.05)
     isTeleportingLv = false
 end
 
-function CheckPlayerPositionLv()
+local function CheckPlayerPositionLv()
     local player = game.Players.LocalPlayer
     if not player or not player.Character then return end
     
@@ -563,7 +560,7 @@ function CheckPlayerPositionLv()
     end
 end
 
-function FarmLv()
+local function FarmLvLoop()
     if not isFarmingLv then return end
     
     if not wallModelLv then
@@ -580,30 +577,32 @@ function FarmLv()
     while isFarmingLv do
         task.wait(5)
         
-        local notifications = game:GetService("StarterGui"):GetChildren()
-        for _, notif in ipairs(notifications) do
-            if notif:IsA("ScreenGui") and notif:FindFirstChild("Timer") then
-                local timer = notif.Timer
-                if timer and timer.Text and string.find(timer.Text, "Hết thời gian") then
-                    Notify("Farm Lv", "Đã hết thời gian!", 3)
-                    
-                    local rewards = game:GetService("ReplicatedStorage"):FindFirstChild("Rewards")
-                    if rewards then
-                        local playerReward = rewards:FindFirstChild(game.Players.LocalPlayer.Name)
-                        if playerReward then
-                            Notify("Farm Lv", string.format("Phần thưởng của bạn: %s", playerReward.Value), 5)
+        pcall(function()
+            local notifications = game:GetService("StarterGui"):GetChildren()
+            for _, notif in ipairs(notifications) do
+                if notif:IsA("ScreenGui") and notif:FindFirstChild("Timer") then
+                    local timer = notif.Timer
+                    if timer and timer.Text and string.find(timer.Text, "Hết thời gian") then
+                        Notify("Farm Lv", "Đã hết thời gian!", 3)
+                        
+                        local rewards = game:GetService("ReplicatedStorage"):FindFirstChild("Rewards")
+                        if rewards then
+                            local playerReward = rewards:FindFirstChild(game.Players.LocalPlayer.Name)
+                            if playerReward then
+                                Notify("Farm Lv", string.format("Phần thưởng của bạn: %s", playerReward.Value), 5)
+                            end
                         end
+                        break
                     end
-                    break
                 end
             end
-        end
+        end)
         
         CheckPlayerPositionLv()
     end
 end
 
-function StartFarmLv()
+local function StartFarmLv()
     if isFarmingLv then return end
     if isFarming then
         StopFarmEvent()
@@ -611,22 +610,22 @@ function StartFarmLv()
     isFarmingLv = true
     CreateWallLv()
     task.wait(1)
-    task.spawn(function()
-        FarmLv()
-    end)
+    task.spawn(FarmLvLoop)
 end
 
-function StopFarmLv()
+local function StopFarmLv()
     isFarmingLv = false
-    if wallModelLv then
-        wallModelLv:Destroy()
-        wallModelLv = nil
-    end
+    pcall(function()
+        if wallModelLv then
+            wallModelLv:Destroy()
+            wallModelLv = nil
+        end
+    end)
     Notify("Farm Lv", "Đã dừng Farm Lv!", 2)
 end
 
 -- ===== TẠO TOGGLE =====
-local farmEventToggle = farmTab:CreateToggle({
+farmEventToggle = farmTab:CreateToggle({
     name = "Farm Event",
     flag = "FarmEventToggle",
     callback = function(value)
@@ -638,7 +637,7 @@ local farmEventToggle = farmTab:CreateToggle({
     end,
 })
 
-local farmLvToggle = farmTab:CreateToggle({
+farmLvToggle = farmTab:CreateToggle({
     name = "Farm Lv",
     flag = "FarmLvToggle",
     callback = function(value)
