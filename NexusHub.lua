@@ -190,13 +190,22 @@ end
 
 -- ===== TELEPORT =====
 local function TeleportWithEmote(position, cframe, isWall, isLv)
-    local teleportingVar = isLv and "isTeleportingLv" or "isTeleporting"
-    if getfenv()[teleportingVar] then return end
-    getfenv()[teleportingVar] = true
+    -- Kiểm tra teleporting đang chạy
+    if isLv then
+        if isTeleportingLv then return end
+        isTeleportingLv = true
+    else
+        if isTeleporting then return end
+        isTeleporting = true
+    end
     
     local player = game.Players.LocalPlayer
     if not player or not player.Character then
-        getfenv()[teleportingVar] = false
+        if isLv then
+            isTeleportingLv = false
+        else
+            isTeleporting = false
+        end
         return
     end
     
@@ -204,7 +213,11 @@ local function TeleportWithEmote(position, cframe, isWall, isLv)
     local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
     
     if not humanoid or not humanoidRootPart then
-        getfenv()[teleportingVar] = false
+        if isLv then
+            isTeleportingLv = false
+        else
+            isTeleporting = false
+        end
         return
     end
     
@@ -247,7 +260,12 @@ local function TeleportWithEmote(position, cframe, isWall, isLv)
     end)
     
     task.wait(0.05)
-    getfenv()[teleportingVar] = false
+    
+    if isLv then
+        isTeleportingLv = false
+    else
+        isTeleporting = false
+    end
 end
 
 -- ===== TELEPORT ĐẾN TƯỜNG =====
