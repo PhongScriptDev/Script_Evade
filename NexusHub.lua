@@ -42,10 +42,16 @@ local versionTag = window:CreateTag({
     color = Color3.fromRGB(100, 200, 255),
 })
 
+-- ===== TẠO TAG VERSION =====
+local versionTag = window:CreateTag({
+    text = "⚡ Version: 2.1.7",
+    color = Color3.fromRGB(100, 200, 255),
+})
+
 -- ===== TẠO TAG FPS =====
 local fpsTag = window:CreateTag({
-    text = "🟢 FPS Stable",
-    color = Color3.fromRGB(80, 200, 120),
+    text = "FPS: 0",
+    color = Color3.fromRGB(80, 200, 120), -- Màu xanh lá mặc định
 })
 
 -- ===== HÀM CẬP NHẬT FPS TAG =====
@@ -59,36 +65,36 @@ local function UpdateFpsTag()
         local currentTime = tick()
         local deltaTime = currentTime - lastTime
         
-        if deltaTime >= 1 then
+        if deltaTime >= 0.5 then -- Cập nhật mỗi 0.5 giây để chính xác hơn
             fps = frameCount / deltaTime
             frameCount = 0
             lastTime = currentTime
             
-            -- Cập nhật tag dựa trên FPS
-            if fps >= 50 then
-                -- Ổn định
-                fpsTag:Set({
-                    text = "🟢 FPS Stable (" .. math.floor(fps) .. ")",
-                    color = Color3.fromRGB(80, 200, 120)
-                })
-            elseif fps >= 30 and fps < 50 then
-                -- Trung bình
-                fpsTag:Set({
-                    text = "🟠 FPS Medium (" .. math.floor(fps) .. ")",
-                    color = Color3.fromRGB(255, 175, 15)
-                })
+            -- Làm tròn FPS chính xác
+            local roundedFps = math.floor(fps + 0.5)
+            
+            -- Cập nhật màu dựa trên FPS
+            local color
+            if roundedFps >= 55 then
+                -- Rất mượt - Xanh lá
+                color = Color3.fromRGB(80, 200, 120)
+            elseif roundedFps >= 40 and roundedFps < 55 then
+                -- Ổn - Cam
+                color = Color3.fromRGB(255, 175, 15)
             else
-                -- Thấp
-                fpsTag:Set({
-                    text = "🔴 FPS Low (" .. math.floor(fps) .. ")",
-                    color = Color3.fromRGB(255, 50, 50)
-                })
+                -- Kém - Đỏ
+                color = Color3.fromRGB(255, 50, 50)
             end
+            
+            -- Cập nhật tag với FPS chính xác và màu tương ứng
+            fpsTag:Set({
+                text = "FPS: " .. roundedFps,
+                color = color
+            })
         end
     end)
 end
 
--- Bắt đầu cập nhật FPS
 UpdateFpsTag()
 
 -- ===== TẠO TAB =====
@@ -98,23 +104,18 @@ local farmTab = window:CreateTab({
 })
 
 -- ===== BIẾN TOÀN CỤC =====
--- Farm Event
 local isFarming = false
-local wallParts = {}
+local isFarmingLv = false
 local wallModel = nil
-local currentTarget = nil
+local wallModelLv = nil
 local isTeleporting = false
+local isTeleportingLv = false
 local retryCount = 0
 local maxRetry = 2
 local isWaitingForItem = false
+local currentTarget = nil
 
--- Farm Lv
-local isFarmingLv = false
-local wallPartsLv = {}
-local wallModelLv = nil
-local isTeleportingLv = false
-
--- Danh sách 20 vật phẩm
+-- Danh sách 20 vật phẩm (1 Bubble, 19 none)
 local EventItems = {
     "Bubble",
     "none",
@@ -138,22 +139,21 @@ local EventItems = {
     "none"
 }
 
--- ===== HÀM THÔNG BÁO =====
+-- ===== HÀM THÔNG BÁO RAYFIELD =====
 function Notify(title, message, duration)
     duration = duration or 3
-    game:GetService("StarterGui"):SetCore("SendNotification", {
+    Rayfield:Notify({
         Title = title,
         Text = message,
-        Duration = duration
+        Duration = duration,
     })
 end
 
--- ===== FARM EVENT =====
+-- ===== FARM EVENT - TẠO TƯỜNG =====
 function CreateWall()
     if wallModel then
         wallModel:Destroy()
         wallModel = nil
-        wallParts = {}
     end
     
     Notify("Farm Event", "Đang tạo tường...", 2)
@@ -164,7 +164,7 @@ function CreateWall()
     local wallPosition = Vector3.new(0, -800, 0)
     
     local wall = Instance.new("Part")
-    wall.Size = Vector3.new(100, 10, 1)
+    wall.Size = Vector3.new(200, 10, 2)
     wall.Position = wallPosition
     wall.Anchored = true
     wall.CanCollide = true
@@ -173,20 +173,29 @@ function CreateWall()
     wall.Material = Enum.Material.SmoothPlastic
     wall.Parent = wallModel
     
-    for i = -8, 8 do
+    for i = -10, 10 do
         local extraWall = wall:Clone()
-        extraWall.Position = wallPosition + Vector3.new(i * 100, 0, 0)
+        extraWall.Position = wallPosition + Vector3.new(i * 200, 0, 0)
         extraWall.Parent = wallModel
-        table.insert(wallParts, extraWall)
     end
     
     wallModel.Parent = game.Workspace
     
     Notify("Farm Event", "Tường đã được tạo thành công!", 2)
     
+    local player = game.Players.LocalPlayer
+    if player and player.Character then
+        local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+        if humanoidRootPart then
+            humanoidRootPart.CFrame = CFrame.new(wallPosition + Vector3.new(0, 5, 0))
+            Notify("Farm Event", "Đã teleport lên tường!", 2)
+        end
+    end
+    
     return wallModel
 end
 
+-- ===== FARM EVENT - KIỂM TRA DANH SÁCH =====
 function CheckEventItemsList()
     local validItems = {}
     local noneCount = 0
@@ -206,6 +215,7 @@ function CheckEventItemsList()
     return true, "Đang tìm Bubble...", validItems
 end
 
+-- ===== FARM EVENT - TÌM VẬT PHẨM (QUÉT TOÀN SERVER) =====
 function FindEventItems()
     local foundItems = {}
     local valid, _, validItems = CheckEventItemsList()
@@ -219,26 +229,32 @@ function FindEventItems()
     local allParts = game.Workspace:GetDescendants()
     
     for _, obj in ipairs(allParts) do
-        if obj:IsA("BasePart") then
+        if obj:IsA("BasePart") and obj.Parent then
             for _, itemName in ipairs(validItems) do
-                if obj.Name == itemName and obj.Parent and obj.Parent:IsA("Model") then
+                if obj.Name == itemName then
                     local position = obj.Position
                     local cframe = obj.CFrame
                     
-                    if position and position.Magnitude > 0 and obj.Parent and obj.Parent:FindFirstChild("Humanoid") == nil then
-                        local exactPosition = Vector3.new(
-                            math.round(position.X * 1000) / 1000,
-                            math.round(position.Y * 1000) / 1000,
-                            math.round(position.Z * 1000) / 1000
-                        )
+                    if position and position.Magnitude > 0 then
+                        local isCharacter = false
+                        local currentParent = obj.Parent
+                        while currentParent do
+                            if currentParent:IsA("Model") and currentParent:FindFirstChild("Humanoid") then
+                                isCharacter = true
+                                break
+                            end
+                            currentParent = currentParent.Parent
+                        end
                         
-                        table.insert(foundItems, {
-                            Name = itemName,
-                            Position = exactPosition,
-                            CFrame = cframe,
-                            Object = obj,
-                            Parent = obj.Parent
-                        })
+                        if not isCharacter then
+                            table.insert(foundItems, {
+                                Name = itemName,
+                                Position = position,
+                                CFrame = cframe,
+                                Object = obj,
+                                Parent = obj.Parent
+                            })
+                        end
                     end
                 end
             end
@@ -250,6 +266,7 @@ function FindEventItems()
     return foundItems
 end
 
+-- ===== FARM EVENT - TELEPORT CÓ EMOTE =====
 function TeleportToPosition(position, cframe, isWall)
     if isTeleporting then return end
     isTeleporting = true
@@ -301,6 +318,7 @@ function TeleportToPosition(position, cframe, isWall)
     isTeleporting = false
 end
 
+-- ===== FARM EVENT - KIỂM TRA VỊ TRÍ =====
 function CheckPlayerPosition()
     local player = game.Players.LocalPlayer
     if not player or not player.Character then return end
@@ -314,6 +332,7 @@ function CheckPlayerPosition()
     end
 end
 
+-- ===== FARM EVENT - MAIN LOOP =====
 function FarmEvent()
     if not isFarming then return end
     
@@ -329,7 +348,7 @@ function FarmEvent()
     
     if not wallModel then
         CreateWall()
-        TeleportToPosition(wallModel:GetPivot().Position + Vector3.new(0, 5, 0), nil, true)
+        task.wait(1)
     end
     
     local foundItems = FindEventItems()
@@ -405,7 +424,6 @@ function FarmEvent()
     end
     
     CheckPlayerPosition()
-    
     task.wait(0.3)
     
     if isFarming then
@@ -413,12 +431,14 @@ function FarmEvent()
     end
 end
 
+-- ===== FARM EVENT - START/STOP =====
 function StartFarmEvent()
     if isFarming then return end
     isFarming = true
     isWaitingForItem = false
     retryCount = 0
     CreateWall()
+    task.wait(1)
     task.spawn(function()
         FarmEvent()
     end)
@@ -432,7 +452,6 @@ function StopFarmEvent()
     if wallModel then
         wallModel:Destroy()
         wallModel = nil
-        wallParts = {}
     end
     Notify("Farm Event", "Đã dừng Farm Event!", 2)
 end
@@ -442,7 +461,6 @@ function CreateWallLv()
     if wallModelLv then
         wallModelLv:Destroy()
         wallModelLv = nil
-        wallPartsLv = {}
     end
     
     Notify("Farm Lv", "Đang tạo tường...", 2)
@@ -453,7 +471,7 @@ function CreateWallLv()
     local wallPosition = Vector3.new(0, -800, 0)
     
     local wall = Instance.new("Part")
-    wall.Size = Vector3.new(100, 10, 1)
+    wall.Size = Vector3.new(200, 10, 2)
     wall.Position = wallPosition
     wall.Anchored = true
     wall.CanCollide = true
@@ -462,14 +480,21 @@ function CreateWallLv()
     wall.Material = Enum.Material.SmoothPlastic
     wall.Parent = wallModelLv
     
-    for i = -8, 8 do
+    for i = -10, 10 do
         local extraWall = wall:Clone()
-        extraWall.Position = wallPosition + Vector3.new(i * 100, 0, 0)
+        extraWall.Position = wallPosition + Vector3.new(i * 200, 0, 0)
         extraWall.Parent = wallModelLv
-        table.insert(wallPartsLv, extraWall)
     end
     
     wallModelLv.Parent = game.Workspace
+    
+    local player = game.Players.LocalPlayer
+    if player and player.Character then
+        local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+        if humanoidRootPart then
+            humanoidRootPart.CFrame = CFrame.new(wallPosition + Vector3.new(0, 5, 0))
+        end
+    end
     
     Notify("Farm Lv", "Tường đã được tạo thành công!", 2)
     
@@ -543,6 +568,7 @@ function FarmLv()
     
     if not wallModelLv then
         CreateWallLv()
+        task.wait(1)
     end
     
     if wallModelLv then
@@ -579,8 +605,12 @@ end
 
 function StartFarmLv()
     if isFarmingLv then return end
+    if isFarming then
+        StopFarmEvent()
+    end
     isFarmingLv = true
     CreateWallLv()
+    task.wait(1)
     task.spawn(function()
         FarmLv()
     end)
@@ -591,12 +621,11 @@ function StopFarmLv()
     if wallModelLv then
         wallModelLv:Destroy()
         wallModelLv = nil
-        wallPartsLv = {}
     end
     Notify("Farm Lv", "Đã dừng Farm Lv!", 2)
 end
 
--- ===== TẠO TOGGLE TRONG UI (GEN2) =====
+-- ===== TẠO TOGGLE =====
 local farmEventToggle = farmTab:CreateToggle({
     name = "Farm Event",
     flag = "FarmEventToggle",
@@ -626,13 +655,21 @@ game:GetService("Players").LocalPlayer:GetPropertyChangedSignal("LoadCharacter")
     if isFarming then
         task.wait(2)
         CreateWall()
-        TeleportToPosition(wallModel:GetPivot().Position + Vector3.new(0, 5, 0), nil, true)
+        task.wait(1)
+        if wallModel then
+            local wallPosition = wallModel:GetPivot().Position
+            TeleportToPosition(Vector3.new(wallPosition.X, wallPosition.Y + 5, wallPosition.Z), nil, true)
+        end
     end
     
     if isFarmingLv then
         task.wait(2)
         CreateWallLv()
-        TeleportToPositionLv(wallModelLv:GetPivot().Position + Vector3.new(0, 5, 0), nil, true)
+        task.wait(1)
+        if wallModelLv then
+            local wallPosition = wallModelLv:GetPivot().Position
+            TeleportToPositionLv(Vector3.new(wallPosition.X, wallPosition.Y + 5, wallPosition.Z), nil, true)
+        end
     end
 end)
 
