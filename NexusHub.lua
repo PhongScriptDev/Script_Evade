@@ -2,7 +2,7 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
 
 -- ===== PHÁT NHẠC KHI KHỞI ĐỘNG =====
 local function PlayStartupMusic()
-    local soundId = "rbxassetid://1357900029" -- Thay ID nhạc của bạn vào đây
+    local soundId = "rbxassetid://79277371759525" -- Thay ID nhạc của bạn vào đây
     
     local sound = Instance.new("Sound")
     sound.SoundId = soundId
@@ -33,13 +33,6 @@ window:Notify({
     title = "🔔 Notify Running...",
     content = "The UI Library Script Ran Successfully!",
     duration = 5,
-})
-
-
--- ===== TẠO TAG VERSION =====
-local versionTag = window:CreateTag({
-    text = "⚡ Version: 2.1.7",
-    color = Color3.fromRGB(100, 200, 255),
 })
 
 
@@ -89,34 +82,57 @@ UpdateFpsTag()
 
 -- ===== TẠO TAB =====
 local farmTab = window:CreateTab({
-    name = "Farm Handmade",
+    name = "Summer 2026",
     icon = "rbxassetid://93364949241311"
 })
 
--- ===== BIẾN CHO FARM EVENT =====
+-- ===== BIẾN =====
 local isFarming = false
-local wallModel = nil
-local isTeleporting = false
-local retryCount = 0
-local maxRetry = 3
-local isWaitingForItem = false
-local currentTarget = nil
-local farmEventToggle = nil
-local isScanning = false
-local isOnWall = false
-local isWaitingForRound = false
-
--- ===== BIẾN CHO FARM LV =====
 local isFarmingLv = false
+local wallModel = nil
 local wallModelLv = nil
+local isTeleporting = false
 local isTeleportingLv = false
+local farmEventToggle = nil
 local farmLvToggle = nil
-local isOnWallLv = false
+local itemCount = 0
+local noItemTimer = 0
+local collectedItems = 0
+local rewardCoins = 0
+local rewardExp = 0
+local rewardEventItems = 0
 
--- Vị trí tường cố định
+-- Vị trí tường
 local WALL_POSITION = Vector3.new(10000, -500, 10000)
 
--- ===== HÀM THÔNG BÁO RAYFIELD GEN2 =====
+-- ===== CHỐNG GAMEPLAY PAUSED =====
+local function AntiGameplayPaused()
+    pcall(function()
+        local player = game.Players.LocalPlayer
+        if player then
+            player.Idled:Connect(function()
+                local VirtualUser = game:GetService("VirtualUser")
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new(0, 0))
+            end)
+            
+            task.spawn(function()
+                while true do
+                    task.wait(30)
+                    if isFarming or isFarmingLv then
+                        local VirtualUser = game:GetService("VirtualUser")
+                        VirtualUser:CaptureController()
+                        VirtualUser:ClickButton2(Vector2.new(0, 0))
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+AntiGameplayPaused()
+
+-- ===== HÀM THÔNG BÁO =====
 local function Notify(title, content, duration)
     duration = duration or 3
     pcall(function()
@@ -128,7 +144,6 @@ local function Notify(title, content, duration)
     end)
 end
 
--- ===== HÀM TOAST RAYFIELD GEN2 =====
 local function Toast(title, subtitle, duration)
     duration = duration or 2
     pcall(function()
@@ -140,9 +155,76 @@ local function Toast(title, subtitle, duration)
     end)
 end
 
--- ============================================
--- ===== FARM EVENT - TẠO TƯỜNG =====
--- ============================================
+-- ===== KIỂM TRA VẬT PHẨM =====
+local function isPlayerAsset(instance)
+    local Players = game:GetService("Players")
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character and instance:IsDescendantOf(player.Character) then
+            return true
+        end
+    end
+    return false
+end
+
+local function getAllItems()
+    local items = {}
+    for _, v in pairs(workspace:GetDescendants()) do
+        if (v:IsA("BasePart") or v:IsA("Model")) then
+            local nameLower = string.lower(v.Name)
+            if string.find(nameLower, "bubble") or string.find(nameLower, "coconut") then
+                local isVisualEffect = v:FindFirstChildWhichIsA("ParticleEmitter") 
+                                    or v:FindFirstChildWhichIsA("Trail") 
+                                    or v:FindFirstChildWhichIsA("Beam")
+                                    or v.ClassName == "Accessory"
+                local hasAnimation = v:FindFirstChildWhichIsA("Animation") or v:FindFirstChildWhichIsA("Animator")
+
+                if not isVisualEffect and not hasAnimation and not isPlayerAsset(v) then
+                    local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart")
+                    if part then
+                        table.insert(items, part)
+                    end
+                end
+            end
+        end
+    end
+    return items
+end
+
+local function isNextbotNear(position)
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Model") and v:GetAttribute("Nextbot") == true then
+            local root = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChildWhichIsA("BasePart")
+            if root then
+                local distance = (position - root.Position).Magnitude
+                if distance <= 12 then 
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function getClosestSafeItem(hrp, items)
+    local closest, minDst = nil, math.huge
+    for _, part in ipairs(items) do
+        local dst = (hrp.Position - part.Position).Magnitude
+        if dst < minDst and not isNextbotNear(part.Position) then
+            closest = part
+            minDst = dst
+        end
+    end
+    return closest
+end
+
+local function teleportTo(hrp, pos, duration)
+    local TweenService = game:GetService("TweenService")
+    local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(pos)})
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+-- ===== TẠO TƯỜNG =====
 local function CreateWall()
     pcall(function()
         if wallModel then
@@ -168,13 +250,12 @@ local function CreateWall()
     
     wallModel.Parent = game.Workspace
     
-    Notify("Farm Event", "Tường đã được tạo thành công!", 2)
+    Notify("Farm Event", "Tường đã được tạo!", 2)
     Toast("✅ Tường", "Đã tạo xong", 2)
     
     return wallModel
 end
 
--- ===== FARM LV - TẠO TƯỜNG =====
 local function CreateWallLv()
     pcall(function()
         if wallModelLv then
@@ -183,7 +264,7 @@ local function CreateWallLv()
         end
     end)
     
-    Notify("Farm Lv", "Đang tạo tường ở vị trí xa...", 2)
+    Notify("Farm Lv", "Đang tạo tường...", 2)
     
     wallModelLv = Instance.new("Model")
     wallModelLv.Name = "FarmWallLv"
@@ -200,15 +281,13 @@ local function CreateWallLv()
     
     wallModelLv.Parent = game.Workspace
     
-    Notify("Farm Lv", "Tường đã được tạo thành công!", 2)
+    Notify("Farm Lv", "Tường đã được tạo!", 2)
     Toast("✅ Tường Lv", "Đã tạo xong", 2)
     
     return wallModelLv
 end
 
--- ============================================
--- ===== TELEPORT CHUNG =====
--- ============================================
+-- ===== TELEPORT =====
 local function TeleportWithEmote(position, cframe, isWall, isLv)
     if isLv then
         if isTeleportingLv then return end
@@ -238,13 +317,6 @@ local function TeleportWithEmote(position, cframe, isWall, isLv)
             isTeleporting = false
         end
         return
-    end
-    
-    local prefix = isLv and "Farm Lv" or "Farm Event"
-    if isWall then
-        Toast("🏠 " .. prefix, "Đang teleport đến tường...", 2)
-    else
-        Toast("🔄 " .. prefix, "Đang teleport đến Bubble...", 2)
     end
     
     pcall(function()
@@ -287,354 +359,125 @@ local function TeleportWithEmote(position, cframe, isWall, isLv)
     end
 end
 
--- ============================================
--- ===== FARM EVENT - TELEPORT ĐẾN TƯỜNG =====
--- ============================================
 local function TeleportToWall()
     if not wallModel then return end
-    
     local pos = wallModel:GetPivot().Position
-    local targetPos = Vector3.new(pos.X, pos.Y + 1, pos.Z)
-    
-    TeleportWithEmote(targetPos, nil, true, false)
+    TeleportWithEmote(Vector3.new(pos.X, pos.Y + 1, pos.Z), nil, true, false)
 end
 
--- ============================================
--- ===== FARM EVENT - TELEPORT ĐẾN BUBBLE =====
--- ============================================
-local function TeleportToBubble(position, cframe)
-    TeleportWithEmote(position, cframe, false, false)
-end
-
--- ============================================
--- ===== FARM LV - TELEPORT ĐẾN TƯỜNG =====
--- ============================================
 local function TeleportToWallLv()
     if not wallModelLv then return end
-    
     local pos = wallModelLv:GetPivot().Position
-    local targetPos = Vector3.new(pos.X, pos.Y + 1, pos.Z)
-    
-    TeleportWithEmote(targetPos, nil, true, true)
+    TeleportWithEmote(Vector3.new(pos.X, pos.Y + 1, pos.Z), nil, true, true)
 end
 
--- ============================================
--- ===== FARM EVENT - PHÁT HIỆN XUỐNG TƯỜNG =====
--- ============================================
-local function CheckIfFallOffWall()
+-- ===== PHÁT HIỆN XUỐNG TƯỜNG =====
+local function CheckFallOffWall()
     local player = game.Players.LocalPlayer
     if not player or not player.Character then return end
     
-    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return end
-    
+    local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
     if not wallModel then return end
     
     local wallPos = wallModel:GetPivot().Position
-    local posY = humanoidRootPart.Position.Y
-    
-    -- Nếu người chơi xuống dưới tường (Y thấp hơn tường)
-    if posY < wallPos.Y - 1 then
-        isOnWall = false
-        Notify("Farm Event", "⚠️ Phát hiện đã xuống tường! Đang teleport lại...", 2)
+    if rootPart.Position.Y < wallPos.Y - 1 then
         Toast("⚠️ Xuống tường", "Đang teleport lại...", 2)
         TeleportToWall()
-        task.wait(0.5)
-        isOnWall = true
-        Toast("✅ Đã teleport", "Lên tường thành công", 2)
     end
 end
 
--- ============================================
--- ===== FARM LV - PHÁT HIỆN XUỐNG TƯỜNG =====
--- ============================================
-local function CheckIfFallOffWallLv()
+local function CheckFallOffWallLv()
     local player = game.Players.LocalPlayer
     if not player or not player.Character then return end
     
-    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return end
-    
+    local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
     if not wallModelLv then return end
     
     local wallPos = wallModelLv:GetPivot().Position
-    local posY = humanoidRootPart.Position.Y
-    
-    if posY < wallPos.Y - 1 then
-        isOnWallLv = false
-        Notify("Farm Lv", "⚠️ Phát hiện đã xuống tường! Đang teleport lại...", 2)
+    if rootPart.Position.Y < wallPos.Y - 1 then
         Toast("⚠️ Xuống tường", "Đang teleport lại...", 2)
         TeleportToWallLv()
-        task.wait(0.5)
-        isOnWallLv = true
-        Toast("✅ Đã teleport", "Lên tường thành công", 2)
     end
 end
 
--- ============================================
--- ===== FARM EVENT - KIỂM TRA VÒNG CHƠI =====
--- ============================================
-local function CheckRoundStatus()
-    local player = game.Players.LocalPlayer
-    if not player then return false end
-    
-    local gameState = game:GetService("ReplicatedStorage"):FindFirstChild("GameState")
-    if gameState then
-        local state = gameState.Value
-        if state == "Waiting" or state == "Ended" then
-            return false, "Đang chờ vòng mới..."
-        end
-    end
-    
-    local voteTime = game:GetService("ReplicatedStorage"):FindFirstChild("VoteTime")
-    if voteTime and voteTime.Value > 0 then
-        return false, "Đang trong thời gian bình chọn..."
-    end
-    
-    return true, "Sẵn sàng farm!"
-end
-
--- ============================================
--- ===== FARM EVENT - TÌM BUBBLE =====
--- ============================================
-local function FindBubbles()
-    if isScanning then return {} end
-    isScanning = true
-    
-    local foundItems = {}
-    
-    Notify("Farm Event", "🔍 Đang quét toàn bộ map để tìm Bubble...", 2)
-    Toast("🔍 Quét map", "Đang tìm Bubble...", 2)
-    
-    local allParts = game.Workspace:GetDescendants()
-    local player = game.Players.LocalPlayer
-    
-    for _, obj in ipairs(allParts) do
-        if obj:IsA("BasePart") and obj.Parent then
-            if obj.Name == "Bubble" then
-                local position = obj.Position
-                local cframe = obj.CFrame
-                
-                if position and position.Magnitude > 0 then
-                    local isCharacter = false
-                    local currentParent = obj.Parent
-                    while currentParent do
-                        if currentParent:IsA("Model") and currentParent:FindFirstChild("Humanoid") then
-                            isCharacter = true
-                            break
-                        end
-                        currentParent = currentParent.Parent
-                    end
-                    
-                    local isMyWall = false
-                    if wallModel and obj.Parent == wallModel then
-                        isMyWall = true
-                    end
-                    
-                    if not isCharacter and not isMyWall then
-                        table.insert(foundItems, {
-                            Name = "Bubble",
-                            Position = position,
-                            CFrame = cframe,
-                            Object = obj,
-                            Parent = obj.Parent
-                        })
-                    end
-                end
-            end
-        end
-    end
-    
-    if player and player.Character then
-        local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
-        if rootPart then
-            table.sort(foundItems, function(a, b)
-                local distA = (a.Position - rootPart.Position).Magnitude
-                local distB = (b.Position - rootPart.Position).Magnitude
-                return distA < distB
-            end)
-        end
-    end
-    
-    Notify("Farm Event", string.format("✅ Đã tìm thấy %d Bubble trong map!", #foundItems), 2)
-    Toast("✅ Tìm thấy", #foundItems .. " Bubble", 2)
-    
-    isScanning = false
-    return foundItems
-end
-
--- ============================================
 -- ===== FARM EVENT - MAIN LOOP =====
--- ============================================
 local function FarmEventLoop()
     if not isFarming then return end
     
-    -- Tạo tường nếu chưa có
-    if not wallModel then
-        CreateWall()
+    AntiGameplayPaused()
+    
+    local player = game.Players.LocalPlayer
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if not char or not hrp then
         task.wait(1)
-    end
-    
-    -- Teleport lên tường nếu chưa ở trên tường
-    if wallModel then
-        local player = game.Players.LocalPlayer
-        if player and player.Character then
-            local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                local wallPos = wallModel:GetPivot().Position
-                local posY = rootPart.Position.Y
-                
-                if posY < wallPos.Y - 1 then
-                    TeleportToWall()
-                    task.wait(0.5)
-                    isOnWall = true
-                else
-                    isOnWall = true
-                end
-            end
-        end
-    end
-    
-    -- Kiểm tra vòng chơi
-    local canFarm, status = CheckRoundStatus()
-    if not canFarm then
-        if not isWaitingForRound then
-            isWaitingForRound = true
-            Notify("Farm Event", "⏳ " .. status, 2)
-            Toast("⏳ Chờ", status, 2)
-        end
-        task.wait(2)
-        if isFarming then
-            FarmEventLoop()
-        end
-        return
-    end
-    isWaitingForRound = false
-    
-    -- Tìm Bubble
-    local foundItems = FindBubbles()
-    
-    if #foundItems == 0 then
-        Notify("Farm Event", "⏳ Không tìm thấy Bubble nào, đang chờ...", 2)
-        Toast("⏳ Chờ Bubble", "Không có Bubble", 2)
-        task.wait(2)
-        if isFarming then
-            FarmEventLoop()
-        end
+        if isFarming then FarmEventLoop() end
         return
     end
     
-    -- Lấy Bubble gần nhất
-    local target = foundItems[1]
-    currentTarget = target
+    local items = getAllItems()
+    itemCount = #items
+    
+    if itemCount == 0 then
+        noItemTimer = noItemTimer + 0.5
+        if noItemTimer >= 20 then
+            Notify("Farm Event", "⚠️ Không có Bubble, đang chờ...", 3)
+            Toast("⏳ Chờ", "Không có Bubble", 2)
+            noItemTimer = 0
+        end
+        task.wait(1)
+        if isFarming then FarmEventLoop() end
+        return
+    end
+    
+    noItemTimer = 0
+    
+    local target = getClosestSafeItem(hrp, items)
     
     if target then
-        -- Kiểm tra nếu đang chờ Bubble biến mất
-        if isWaitingForItem then
-            if not target.Object or not target.Object.Parent then
-                isWaitingForItem = false
-                retryCount = 0
-                Notify("Farm Event", "✅ Đã nhận Bubble thành công!", 2)
-                Toast("✅ Nhận Bubble", "Thành công!", 2)
-                TeleportToWall()
-                task.wait(0.3)
-                isOnWall = true
-            else
-                task.wait(0.5)
-                if isFarming then
-                    FarmEventLoop()
-                end
-                return
-            end
-        end
+        Toast("🔄 Tìm thấy", "Bubble gần nhất", 2)
         
-        -- TELEPORT ĐẾN BUBBLE
-        Notify("Farm Event", "🔄 Đang teleport đến Bubble...", 2)
-        Toast("🔄 Teleport", "Đến Bubble", 2)
-        TeleportToBubble(target.Position, target.CFrame)
-        task.wait(0.3)
+        local tween = game:GetService("TweenService"):Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {CFrame = CFrame.new(target.Position)})
+        tween:Play()
+        tween.Completed:Wait()
         
-        -- Kiểm tra đã nhận được chưa
-        if not target.Object or not target.Object.Parent then
-            Notify("Farm Event", "✅ Đã nhận Bubble thành công!", 2)
-            Toast("✅ Nhận Bubble", "Thành công!", 2)
-            retryCount = 0
-            TeleportToWall()
-            task.wait(0.3)
-            isOnWall = true
-        else
-            -- Thử lại nếu thất bại
-            if retryCount < maxRetry then
-                retryCount = retryCount + 1
-                Notify("Farm Event", string.format("❌ Nhận thất bại lần %d, thử lại...", retryCount), 2)
-                Toast("❌ Thất bại", "Lần " .. retryCount, 2)
-                task.wait(0.3)
-                TeleportToBubble(target.Position, target.CFrame)
-                task.wait(0.3)
-                
-                if not target.Object or not target.Object.Parent then
-                    Notify("Farm Event", "✅ Đã nhận Bubble thành công!", 2)
-                    Toast("✅ Nhận Bubble", "Thành công!", 2)
-                    retryCount = 0
-                    TeleportToWall()
-                    task.wait(0.3)
-                    isOnWall = true
-                else
-                    isWaitingForItem = true
-                    Notify("Farm Event", "⏳ Đang chờ Bubble biến mất...", 2)
-                    Toast("⏳ Chờ biến mất", "Đang chờ...", 2)
-                    while isWaitingForItem and target.Object and target.Object.Parent do
-                        task.wait(0.5)
-                    end
-                    if isWaitingForItem then
-                        isWaitingForItem = false
-                        retryCount = 0
-                        Notify("Farm Event", "✅ Bubble đã biến mất!", 2)
-                        Toast("✅ Biến mất", "Bubble đã biến mất", 2)
-                        TeleportToWall()
-                        task.wait(0.3)
-                        isOnWall = true
-                    end
-                end
-            else
-                isWaitingForItem = true
-                Notify("Farm Event", "⏳ Đang chờ Bubble biến mất...", 2)
-                Toast("⏳ Chờ biến mất", "Đang chờ...", 2)
-                while isWaitingForItem and target.Object and target.Object.Parent do
-                    task.wait(0.5)
-                end
-                if isWaitingForItem then
-                    isWaitingForItem = false
-                    retryCount = 0
-                    Notify("Farm Event", "✅ Bubble đã biến mất!", 2)
-                    Toast("✅ Biến mất", "Bubble đã biến mất", 2)
-                    TeleportToWall()
-                    task.wait(0.3)
-                    isOnWall = true
-                end
-            end
+        pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local collectId = target.Parent:GetAttribute("Id") or target:GetAttribute("Id") or "a19ac91bff904b7385e826fd6a23dc01"
+            ReplicatedStorage.Events.Collectibles.Invoke:InvokeServer(player, collectId, "Collect")
+            
+            collectedItems = collectedItems + 1
+            Notify("🔔 Tổng nhận event items", string.format("🔎 Event items: %d", collectedItems), 2)
+            Toast("✅ Nhận", string.format("Bubble #%d", collectedItems), 2)
+        end)
+        
+        task.wait(0.5)
+        
+        if wallModel then
+            local wallPos = wallModel:GetPivot().Position
+            local tween2 = game:GetService("TweenService"):Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {CFrame = CFrame.new(Vector3.new(wallPos.X, wallPos.Y + 1, wallPos.Z))})
+            tween2:Play()
+            tween2.Completed:Wait()
         end
     end
     
-    task.wait(0.3)
+    task.wait(0.5)
     
     if isFarming then
         FarmEventLoop()
     end
 end
 
--- ============================================
 -- ===== START/STOP FARM EVENT =====
--- ============================================
 local function StartFarmEvent()
     if isFarming then return end
     
     isFarming = true
-    isWaitingForItem = false
-    retryCount = 0
-    isScanning = false
-    isOnWall = false
-    isWaitingForRound = false
+    noItemTimer = 0
+    collectedItems = 0
     
     Notify("Farm Event", "🚀 Đang khởi động Farm Event...", 2)
     Toast("🚀 Khởi động", "Farm Event", 2)
@@ -643,20 +486,13 @@ local function StartFarmEvent()
     task.wait(1)
     TeleportToWall()
     task.wait(0.5)
-    isOnWall = true
-    Toast("✅ Sẵn sàng", "Bắt đầu farm!", 2)
     
     task.spawn(FarmEventLoop)
 end
 
 local function StopFarmEvent()
     isFarming = false
-    currentTarget = nil
-    isWaitingForItem = false
-    retryCount = 0
-    isScanning = false
-    isOnWall = false
-    isWaitingForRound = false
+    noItemTimer = 0
     
     pcall(function()
         if wallModel then
@@ -665,54 +501,60 @@ local function StopFarmEvent()
         end
     end)
     
-    Notify("Farm Event", "🛑 Đã dừng Farm Event!", 2)
-    Toast("🛑 Dừng", "Farm Event", 2)
+    Notify("🔔 Tổng nhận event items", string.format("🔎 Event items: %d", collectedItems), 3)
+    Toast("🛑 Dừng", string.format("Đã nhận %d Bubble", collectedItems), 3)
 end
 
--- ============================================
--- ===== FARM LV - MAIN LOOP (CHỈ ĐỨNG) =====
--- ============================================
+-- ===== FARM LV - CHỈ ĐỨNG TƯỜNG =====
 local function FarmLvLoop()
     if not isFarmingLv then return end
     
-    -- Tạo tường nếu chưa có
+    AntiGameplayPaused()
+    
     if not wallModelLv then
         CreateWallLv()
         task.wait(1)
     end
     
-    -- Teleport lên tường
-    if wallModelLv then
-        TeleportToWallLv()
-        Notify("Farm Lv", "📍 Đang đứng tại tường chờ phần thưởng...", 2)
-        Toast("📍 Đứng chờ", "Chờ phần thưởng...", 2)
-        isOnWallLv = true
-    end
+    TeleportToWallLv()
+    Toast("📍 Đứng chờ", "Chờ phần thưởng...", 3)
     
-    -- CHỈ ĐỨNG TRÊN TƯỜNG, KHÔNG LÀM GÌ KHÁC
     while isFarmingLv do
         task.wait(3)
+        CheckFallOffWallLv()
+        AntiGameplayPaused()
         
-        -- Kiểm tra nếu rời khỏi tường thì teleport lại
-        CheckIfFallOffWallLv()
-        
-        -- Kiểm tra hết thời gian và phần thưởng
         pcall(function()
             local notifications = game:GetService("StarterGui"):GetChildren()
             for _, notif in ipairs(notifications) do
                 if notif:IsA("ScreenGui") and notif:FindFirstChild("Timer") then
                     local timer = notif.Timer
                     if timer and timer.Text and string.find(timer.Text, "Hết thời gian") then
-                        Notify("Farm Lv", "⏰ Đã hết thời gian!", 3)
-                        Toast("⏰ Hết giờ", "Kiểm tra phần thưởng", 3)
-                        
+                        -- THÔNG BÁO PHẦN THƯỞNG TRƯỚC KHI NHẬN
                         local rewards = game:GetService("ReplicatedStorage"):FindFirstChild("Rewards")
                         if rewards then
                             local playerReward = rewards:FindFirstChild(game.Players.LocalPlayer.Name)
                             if playerReward then
-                                Notify("Farm Lv", string.format("🎁 Phần thưởng của bạn: %s", playerReward.Value), 5)
-                                Toast("🎁 Phần thưởng", tostring(playerReward.Value), 5)
+                                local coinReward = playerReward:FindFirstChild("Coins") or playerReward:FindFirstChild("Money")
+                                local expReward = playerReward:FindFirstChild("Exp") or playerReward:FindFirstChild("Experience")
+                                local eventReward = playerReward:FindFirstChild("EventItems") or playerReward:FindFirstChild("Bubbles")
+                                
+                                local coinText = coinReward and string.format("💰 Tiền %d", coinReward.Value) or "💰 Tiền 0"
+                                local expText = expReward and string.format("⚡ Exp %d", expReward.Value) or "⚡ Exp 0"
+                                local eventText = eventReward and string.format("🎁 Event items %d", eventReward.Value) or "🎁 Event items 0"
+                                
+                                -- HIỂN THỊ THÔNG BÁO TRƯỚC KHI NHẬN
+                                Notify("🔔 Phần thưởng nhận được:", string.format("%s | %s | %s", coinText, expText, eventText), 5)
+                                Toast("🎁 Phần thưởng", "Đang nhận...", 3)
+                                
+                                -- SAU ĐÓ MỚI NHẬN PHẦN THƯỞNG
+                                task.wait(1)
+                                -- Code nhận phần thưởng ở đây (nếu có)
+                            else
+                                Notify("🔔 Phần thưởng nhận được:", "❌ Không có phần thưởng", 3)
                             end
+                        else
+                            Notify("🔔 Phần thưởng nhận được:", "❌ Không tìm thấy phần thưởng", 3)
                         end
                         break
                     end
@@ -722,33 +564,20 @@ local function FarmLvLoop()
     end
 end
 
--- ============================================
--- ===== START/STOP FARM LV =====
--- ============================================
 local function StartFarmLv()
     if isFarmingLv then return end
     if isFarming then
         StopFarmEvent()
     end
     isFarmingLv = true
-    isOnWallLv = false
-    
-    Notify("Farm Lv", "🚀 Đang khởi động Farm Lv...", 2)
-    Toast("🚀 Khởi động", "Farm Lv", 2)
-    
     CreateWallLv()
     task.wait(1)
     TeleportToWallLv()
-    task.wait(0.5)
-    isOnWallLv = true
-    Toast("✅ Sẵn sàng", "Đứng chờ phần thưởng", 2)
-    
     task.spawn(FarmLvLoop)
 end
 
 local function StopFarmLv()
     isFarmingLv = false
-    isOnWallLv = false
     pcall(function()
         if wallModelLv then
             wallModelLv:Destroy()
@@ -759,9 +588,7 @@ local function StopFarmLv()
     Toast("🛑 Dừng", "Farm Lv", 2)
 end
 
--- ============================================
 -- ===== TẠO TOGGLE =====
--- ============================================
 farmEventToggle = farmTab:CreateToggle({
     name = "Farm Event",
     flag = "FarmEventToggle",
@@ -786,30 +613,26 @@ farmLvToggle = farmTab:CreateToggle({
     end,
 })
 
--- ============================================
--- ===== KIỂM TRA XUỐNG TƯỜNG LIÊN TỤC =====
--- ============================================
+-- ===== KIỂM TRA XUỐNG TƯỜNG =====
 game:GetService("RunService").Heartbeat:Connect(function()
     if isFarming then
-        CheckIfFallOffWall()
+        CheckFallOffWall()
+        AntiGameplayPaused()
     end
-    
     if isFarmingLv then
-        CheckIfFallOffWallLv()
+        CheckFallOffWallLv()
+        AntiGameplayPaused()
     end
 end)
 
--- ============================================
--- ===== XỬ LÝ LOAD MAP =====
--- ============================================
-game:GetService("Players").LocalPlayer:GetPropertyChangedSignal("LoadCharacter"):Connect(function()
+-- ===== RESET KHI DOWNED =====
+game.Players.LocalPlayer.CharacterAdded:Connect(function()
     if isFarming then
         task.wait(2)
         CreateWall()
         task.wait(1)
         TeleportToWall()
     end
-    
     if isFarmingLv then
         task.wait(2)
         CreateWallLv()
@@ -818,5 +641,5 @@ game:GetService("Players").LocalPlayer:GetPropertyChangedSignal("LoadCharacter")
     end
 end)
 
-print("Farm Handmade Pro đã được tải thành công!")
+print("Summer 2026 Farm đã được tải thành công!")
 print("Sử dụng Rayfield Gen2 - Nhấn RightControl để mở UI")
