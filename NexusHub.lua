@@ -112,9 +112,9 @@ local isWaitingForRound = false
 local roundCheckCount = 0
 local lastScanTime = 0
 
--- ===== DANH SÁCH 20 VẬT PHẨM SỰ KIỆN (CHỈ CÓ BUBBLE, CÒN LẠI NONE) =====
+-- ===== DANH SÁCH 20 VẬT PHẨM SỰ KIỆN =====
 local EventItems = {
-    "Bubble",    -- Tiền tệ sự kiện mùa hè 2026
+    "Bubble",
     "none",
     "none",
     "none",
@@ -148,41 +148,17 @@ local function Notify(title, message, duration)
     end)
 end
 
--- ===== FARM EVENT - KIỂM TRA DANH SÁCH VẬT PHẨM =====
-local function CheckEventItemsList()
-    local validItems = {}
-    local noneCount = 0
-    
-    for _, item in ipairs(EventItems) do
-        if item == "none" then
-            noneCount = noneCount + 1
-        else
-            table.insert(validItems, item)
-        end
-    end
-    
-    -- Nếu tất cả đều là none
-    if noneCount == #EventItems then
-        return false, "⚠️ Không có sự kiện", "❗ Không còn sự kiện để farm", {}
-    end
-    
-    -- Nếu có ít nhất 1 ô không phải none (có Bubble hoặc tên khác)
-    if #validItems >= 1 then
-        return true, "✅ Có sự kiện", "🔄 Đang tìm vật phẩm sự kiện...", validItems
-    end
-    
-    return true, "Đang tìm vật phẩm sự kiện...", validItems
-end
-
--- ===== TẠO TƯỜNG Ở XA =====
+-- ===== TẠO TƯỜNG Ở XA VỪA ĐỦ (KHÔNG LAG) =====
 local function CreateWallCommon(modelName)
     local model = Instance.new("Model")
     model.Name = modelName
     
-    local wallPosition = Vector3.new(999999, 0, 999999)
+    -- Vị trí xa vừa đủ để bot không teleport tới nhưng không gây lag
+    -- Sử dụng khoảng cách 10000 units (đủ xa nhưng không quá lớn)
+    local wallPosition = Vector3.new(10000, -500, 10000)
     
     local wall = Instance.new("Part")
-    wall.Size = Vector3.new(500, 1, 500)
+    wall.Size = Vector3.new(200, 1, 200) -- Kích thước vừa phải
     wall.Position = wallPosition
     wall.Anchored = true
     wall.CanCollide = true
@@ -209,7 +185,7 @@ local function CreateWall()
     
     wallModel, _ = CreateWallCommon("FarmWall")
     
-    Notify("Farm Event", "Tường đã được tạo ở vị trí xa!", 2)
+    Notify("Farm Event", "Tường đã được tạo!", 2)
     
     return wallModel
 end
@@ -227,7 +203,7 @@ local function CreateWallLv()
     
     wallModelLv, _ = CreateWallCommon("FarmWallLv")
     
-    Notify("Farm Lv", "Tường đã được tạo ở vị trí xa!", 2)
+    Notify("Farm Lv", "Tường đã được tạo!", 2)
     
     return wallModelLv
 end
@@ -256,7 +232,7 @@ local function TeleportWithEmote(position, cframe, isWall, isLv)
     if isWall then
         Notify(prefix, "Đang teleport đến tường...", 1)
     else
-        Notify(prefix, "Đang teleport đến vật phẩm sự kiện...", 1)
+        Notify(prefix, "Đang teleport đến Bubble...", 1)
     end
     
     pcall(function()
@@ -315,6 +291,30 @@ local function CheckRoundStatus()
     return true, "Sẵn sàng farm!"
 end
 
+-- ===== FARM EVENT - KIỂM TRA DANH SÁCH =====
+local function CheckEventItemsList()
+    local validItems = {}
+    local noneCount = 0
+    
+    for _, item in ipairs(EventItems) do
+        if item == "none" then
+            noneCount = noneCount + 1
+        else
+            table.insert(validItems, item)
+        end
+    end
+    
+    if noneCount == #EventItems then
+        return false, "⚠️ Không có sự kiện", "❗ Không còn sự kiện để farm", {}
+    end
+    
+    if #validItems >= 1 then
+        return true, "✅ Có sự kiện", "🔄 Đang tìm Bubble...", validItems
+    end
+    
+    return true, "Đang tìm Bubble...", validItems
+end
+
 -- ===== FARM EVENT - TÌM VẬT PHẨM (QUÉT TOÀN DIỆN) =====
 local function FindEventItems()
     if isScanning then return {} end
@@ -329,7 +329,7 @@ local function FindEventItems()
         return foundItems
     end
     
-    Notify("Farm Event", "Đang quét toàn diện map và server để tìm vật phẩm sự kiện...", 2)
+    Notify("Farm Event", "Đang quét toàn diện map và server để tìm Bubble...", 2)
     
     local services = {
         game.Workspace,
@@ -399,7 +399,7 @@ local function FindEventItems()
         end
     end
     
-    Notify("Farm Event", string.format("Đã tìm thấy %d vật phẩm sự kiện trong map và server!", #foundItems), 2)
+    Notify("Farm Event", string.format("Đã tìm thấy %d Bubble trong map và server!", #foundItems), 2)
     
     isScanning = false
     lastScanTime = tick()
@@ -477,7 +477,7 @@ local function FarmEventLoop()
     local foundItems = FindEventItems()
     
     if #foundItems == 0 then
-        Notify("Farm Event", "Không tìm thấy vật phẩm sự kiện nào trong map và server, đang chờ...", 2)
+        Notify("Farm Event", "Không tìm thấy Bubble nào trong map và server, đang chờ...", 2)
         task.wait(2)
         if isFarming then
             FarmEventLoop()
@@ -493,7 +493,7 @@ local function FarmEventLoop()
             if not target.Object or not target.Object.Parent then
                 isWaitingForItem = false
                 retryCount = 0
-                Notify("Farm Event", "Đã nhận được vật phẩm " .. target.Name .. " thành công!", 3)
+                Notify("Farm Event", "Đã nhận được Bubble thành công!", 3)
                 if wallModel then
                     local wallPosition = wallModel:GetPivot().Position
                     TeleportWithEmote(Vector3.new(wallPosition.X, wallPosition.Y + 1, wallPosition.Z), nil, true, false)
@@ -513,7 +513,7 @@ local function FarmEventLoop()
         task.wait(0.3)
         
         if not target.Object or not target.Object.Parent then
-            Notify("Farm Event", "Đã nhận vật phẩm " .. target.Name .. " thành công!", 2)
+            Notify("Farm Event", "Đã nhận Bubble thành công!", 2)
             retryCount = 0
             if wallModel then
                 local wallPosition = wallModel:GetPivot().Position
@@ -530,7 +530,7 @@ local function FarmEventLoop()
                 task.wait(0.3)
                 
                 if not target.Object or not target.Object.Parent then
-                    Notify("Farm Event", "Đã nhận vật phẩm " .. target.Name .. " thành công!", 2)
+                    Notify("Farm Event", "Đã nhận Bubble thành công!", 2)
                     retryCount = 0
                     if wallModel then
                         local wallPosition = wallModel:GetPivot().Position
@@ -540,14 +540,14 @@ local function FarmEventLoop()
                     end
                 else
                     isWaitingForItem = true
-                    Notify("Farm Event", "Đang chờ vật phẩm " .. target.Name .. " biến mất...", 2)
+                    Notify("Farm Event", "Đang chờ Bubble biến mất...", 2)
                     while isWaitingForItem and target.Object and target.Object.Parent do
                         task.wait(0.5)
                     end
                     if isWaitingForItem then
                         isWaitingForItem = false
                         retryCount = 0
-                        Notify("Farm Event", "Vật phẩm " .. target.Name .. " đã biến mất!", 2)
+                        Notify("Farm Event", "Bubble đã biến mất!", 2)
                         if wallModel then
                             local wallPosition = wallModel:GetPivot().Position
                             TeleportWithEmote(Vector3.new(wallPosition.X, wallPosition.Y + 1, wallPosition.Z), nil, true, false)
@@ -558,14 +558,14 @@ local function FarmEventLoop()
                 end
             else
                 isWaitingForItem = true
-                Notify("Farm Event", "Đang chờ vật phẩm " .. target.Name .. " biến mất...", 2)
+                Notify("Farm Event", "Đang chờ Bubble biến mất...", 2)
                 while isWaitingForItem and target.Object and target.Object.Parent do
                     task.wait(0.5)
                 end
                 if isWaitingForItem then
                     isWaitingForItem = false
                     retryCount = 0
-                    Notify("Farm Event", "Vật phẩm " .. target.Name .. " đã biến mất!", 2)
+                    Notify("Farm Event", "Bubble đã biến mất!", 2)
                     if wallModel then
                         local wallPosition = wallModel:GetPivot().Position
                         TeleportWithEmote(Vector3.new(wallPosition.X, wallPosition.Y + 1, wallPosition.Z), nil, true, false)
