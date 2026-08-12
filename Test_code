@@ -1,0 +1,800 @@
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
+
+local Window = Rayfield:CreateWindow({
+    name = "Anti-total & Aura farm",
+    subtitle = "TheKill Evolution"
+})
+
+local MainTab = Window:CreateTab({
+    name = "Anti-total & Aura farm",
+    icon = 4483362458
+})
+
+-- Biến trạng thái
+local isEnabled = false
+local speedValue = 0
+local auraParts = {}
+local dotParts = {}
+local numberParts = {}
+local errorParts = {}
+local isAfk = false
+local afkTimer = 0
+local isSleeping = false
+local zzzParts = {}
+local effectActive = true
+local isMale = true -- Mặc định nam, có thể chỉnh
+
+-- Biến quản lý tốc độ mới (chỉ tăng 1 lần duy nhất)
+local speedBoosted = false -- Đã tăng tốc chưa
+local speedIncreaseTime = 0 -- Thời gian đã trôi qua
+local requiredTime = 300 -- 5 phút (300 giây)
+local baseSpeed = 16
+local boostSpeed = 17 -- Chỉ tăng 1
+
+-- Hàm tăng tốc độ (chỉ 1 lần duy nhất)
+local function applySpeedBoost(char)
+    if not char or not char:FindFirstChild("Humanoid") then return end
+    if speedBoosted then return end -- Nếu đã tăng rồi thì không tăng nữa
+    
+    speedBoosted = true
+    char.Humanoid.WalkSpeed = boostSpeed
+    
+    -- Tạo hiệu ứng thông báo tăng tốc
+    local notif = Instance.new("Part")
+    notif.Size = Vector3.new(2, 1, 2)
+    notif.Shape = Enum.PartType.Block
+    notif.Material = Enum.Material.Neon
+    notif.Color = Color3.fromRGB(0, 255, 0)
+    notif.Anchored = true
+    notif.CanCollide = false
+    notif.Transparency = 0.3
+    notif.Parent = workspace
+    
+    local textLabel = Instance.new("BillboardGui", notif)
+    textLabel.Size = UDim2.new(4, 0, 2, 0)
+    textLabel.AlwaysOnTop = true
+    
+    local text = Instance.new("TextLabel", textLabel)
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.BackgroundTransparency = 1
+    text.Text = "⚡ SPEED BOOSTED! 16 → 17 ⚡"
+    text.TextColor3 = Color3.fromRGB(0, 255, 255)
+    text.TextScaled = true
+    text.Font = Enum.Font.GothamBold
+    
+    notif.Position = char.HumanoidRootPart.Position + Vector3.new(0, 4, 0)
+    
+    spawn(function()
+        for i = 1, 30 do
+            notif.Transparency = i / 30
+            notif.Position = notif.Position + Vector3.new(0, 0.1, 0)
+            wait(0.05)
+        end
+        notif:Destroy()
+    end)
+    
+    print("Speed boosted: 16 → 17")
+end
+
+-- Hàm tắt tất cả hiệu ứng (giữ lại Zzz)
+local function disableAllEffects()
+    effectActive = false
+    for _, v in pairs(auraParts) do 
+        spawn(function()
+            for i = 1, 10 do
+                v.Transparency = v.Transparency + 0.1
+                wait(0.05)
+            end
+            v:Destroy()
+        end)
+    end
+    for _, v in pairs(dotParts) do 
+        spawn(function()
+            for i = 1, 10 do
+                v.Transparency = v.Transparency + 0.1
+                wait(0.05)
+            end
+            v:Destroy()
+        end)
+    end
+    for _, v in pairs(numberParts) do 
+        spawn(function()
+            for i = 1, 10 do
+                v.Transparency = v.Transparency + 0.1
+                wait(0.05)
+            end
+            v:Destroy()
+        end)
+    end
+    for _, v in pairs(errorParts) do 
+        spawn(function()
+            for i = 1, 10 do
+                v.Transparency = v.Transparency + 0.1
+                wait(0.05)
+            end
+            v:Destroy()
+        end)
+    end
+    wait(0.5)
+    auraParts = {}
+    dotParts = {}
+    numberParts = {}
+    errorParts = {}
+end
+
+-- Hàm bật lại hiệu ứng
+local function enableAllEffects(char)
+    effectActive = true
+    updateEffects(char)
+end
+
+-- Animation AFK cho R6 Nam (giữ nguyên)
+local function createAfkAnimationMale(char)
+    if not char or not char:FindFirstChild("Humanoid") then return end
+    local humanoid = char.Humanoid
+    if humanoid.RigType ~= Enum.HumanoidRigType.R6 then return end
+    
+    local torso = char:FindFirstChild("Torso")
+    local head = char:FindFirstChild("Head")
+    local leftArm = char:FindFirstChild("Left Arm")
+    local rightArm = char:FindFirstChild("Right Arm")
+    local leftLeg = char:FindFirstChild("Left Leg")
+    local rightLeg = char:FindFirstChild("Right Leg")
+    
+    if not (torso and head and leftArm and rightArm and leftLeg and rightLeg) then return end
+    
+    isSleeping = true
+    
+    -- Tắt hết hiệu ứng
+    disableAllEffects()
+    
+    -- Tạo Zzz
+    for i = 1, 3 do
+        local zzz = Instance.new("Part")
+        zzz.Size = Vector3.new(0.3, 0.3, 0.3)
+        zzz.Shape = Enum.PartType.Ball
+        zzz.Material = Enum.Material.Neon
+        zzz.Color = Color3.fromRGB(100, 200, 255)
+        zzz.Anchored = true
+        zzz.CanCollide = false
+        zzz.Transparency = 0
+        zzz.Parent = workspace
+        
+        local textLabel = Instance.new("BillboardGui", zzz)
+        textLabel.Size = UDim2.new(2, 0, 2, 0)
+        textLabel.AlwaysOnTop = true
+        
+        local text = Instance.new("TextLabel", textLabel)
+        text.Size = UDim2.new(1, 0, 1, 0)
+        text.BackgroundTransparency = 1
+        text.Text = "Zzz"
+        text.TextColor3 = Color3.fromRGB(100, 200, 255)
+        text.TextScaled = true
+        text.Font = Enum.Font.GothamBold
+        
+        zzz.Position = head.Position + Vector3.new(math.random(-2, 2), 2 + i * 0.5, math.random(-2, 2))
+        table.insert(zzzParts, zzz)
+    end
+    
+    -- Animation ngủ cho nam
+    spawn(function()
+        -- Bước 1: 2 chân tách 1 tí
+        for i = 1, 10 do
+            leftLeg.CFrame = leftLeg.CFrame * CFrame.Angles(0, 0, math.rad(0.5))
+            rightLeg.CFrame = rightLeg.CFrame * CFrame.Angles(0, 0, math.rad(-0.5))
+            wait(0.05)
+        end
+        
+        -- Bước 2: Nhìn xung quanh trái phải
+        for i = 1, 20 do
+            head.CFrame = head.CFrame * CFrame.Angles(0, math.rad(math.sin(i/2) * 20), 0)
+            wait(0.05)
+        end
+        
+        -- Bước 3: 2 tay để vào nhau
+        for i = 1, 15 do
+            leftArm.CFrame = torso.CFrame * CFrame.new(-1.2, 0.3, 0.2) * CFrame.Angles(math.rad(-30), math.rad(10), math.rad(20))
+            rightArm.CFrame = torso.CFrame * CFrame.new(1.2, 0.3, 0.2) * CFrame.Angles(math.rad(-30), math.rad(-10), math.rad(-20))
+            wait(0.05)
+        end
+        
+        -- Bước 4: Di chuyển tay xuống dưới rồi lên trên
+        for cycle = 1, 3 do
+            -- Xuống dưới
+            for i = 1, 15 do
+                leftArm.CFrame = leftArm.CFrame * CFrame.new(0, -0.05, 0)
+                rightArm.CFrame = rightArm.CFrame * CFrame.new(0, -0.05, 0)
+                wait(0.05)
+            end
+            -- Lên trên
+            for i = 1, 15 do
+                leftArm.CFrame = leftArm.CFrame * CFrame.new(0, 0.05, 0)
+                rightArm.CFrame = rightArm.CFrame * CFrame.new(0, 0.05, 0)
+                wait(0.05)
+            end
+        end
+        
+        -- Bước 5: Đầu gật (ngủ)
+        for i = 1, 30 do
+            head.CFrame = head.CFrame * CFrame.Angles(math.rad(0.3), 0, 0)
+            wait(0.05)
+        end
+        
+        -- Vòng lặp khi ngủ
+        spawn(function()
+            while isSleeping and char and char.Parent do
+                -- Đầu gật nhẹ
+                head.CFrame = head.CFrame * CFrame.Angles(math.rad(math.sin(tick() * 2) * 0.5), 0, 0)
+                
+                -- Tay hơi cử động
+                leftArm.CFrame = leftArm.CFrame * CFrame.Angles(0, 0, math.rad(math.sin(tick() * 0.5) * 2))
+                rightArm.CFrame = rightArm.CFrame * CFrame.Angles(0, 0, math.rad(math.sin(tick() * 0.7) * 2))
+                
+                -- Cập nhật Zzz
+                for i, zzz in pairs(zzzParts) do
+                    if zzz and zzz.Parent then
+                        zzz.Position = head.Position + Vector3.new(
+                            math.sin(tick() * 0.5 + i) * 1.5,
+                            2 + i * 0.5 + math.sin(tick() * 0.3 + i) * 0.3,
+                            math.cos(tick() * 0.5 + i) * 1.5
+                        )
+                        zzz.Transparency = 0.3 + math.sin(tick() * 0.5 + i) * 0.2
+                    end
+                end
+                
+                wait(0.1)
+            end
+        end)
+    end)
+end
+
+-- Hàm thức dậy cho nam (giữ nguyên)
+local function wakeUpMale(char)
+    if not char then return end
+    isSleeping = false
+    
+    local torso = char:FindFirstChild("Torso")
+    local head = char:FindFirstChild("Head")
+    local leftArm = char:FindFirstChild("Left Arm")
+    local rightArm = char:FindFirstChild("Right Arm")
+    local leftLeg = char:FindFirstChild("Left Leg")
+    local rightLeg = char:FindFirstChild("Right Leg")
+    
+    if not (torso and head and leftArm and rightArm and leftLeg and rightLeg) then return end
+    
+    -- Tạo hiệu ứng !
+    local exclaim = Instance.new("Part")
+    exclaim.Size = Vector3.new(0.5, 0.5, 0.5)
+    exclaim.Shape = Enum.PartType.Ball
+    exclaim.Material = Enum.Material.Neon
+    exclaim.Color = Color3.fromRGB(255, 255, 0)
+    exclaim.Anchored = true
+    exclaim.CanCollide = false
+    exclaim.Parent = workspace
+    
+    local textLabel = Instance.new("BillboardGui", exclaim)
+    textLabel.Size = UDim2.new(2, 0, 2, 0)
+    textLabel.AlwaysOnTop = true
+    
+    local text = Instance.new("TextLabel", textLabel)
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.BackgroundTransparency = 1
+    text.Text = "!"
+    text.TextColor3 = Color3.fromRGB(255, 255, 0)
+    text.TextScaled = true
+    text.Font = Enum.Font.GothamBold
+    
+    exclaim.Position = head.Position + Vector3.new(0, 2, 0)
+    
+    spawn(function()
+        for i = 1, 20 do
+            exclaim.Transparency = i / 20
+            exclaim.Position = exclaim.Position + Vector3.new(0, 0.05, 0)
+            wait(0.05)
+        end
+        exclaim:Destroy()
+    end)
+    
+    -- Animation thức dậy
+    spawn(function()
+        -- Đưa tay về vị trí bình thường
+        for i = 1, 20 do
+            leftArm.CFrame = leftArm.CFrame * CFrame.Angles(math.rad(1.5), 0, math.rad(-1))
+            rightArm.CFrame = rightArm.CFrame * CFrame.Angles(math.rad(1.5), 0, math.rad(1))
+            head.CFrame = head.CFrame * CFrame.Angles(math.rad(-0.5), 0, 0)
+            wait(0.05)
+        end
+        
+        -- Khép chân lại
+        for i = 1, 10 do
+            leftLeg.CFrame = leftLeg.CFrame * CFrame.Angles(0, 0, math.rad(-0.5))
+            rightLeg.CFrame = rightLeg.CFrame * CFrame.Angles(0, 0, math.rad(0.5))
+            wait(0.05)
+        end
+        
+        -- Nhìn thẳng
+        for i = 1, 10 do
+            head.CFrame = head.CFrame * CFrame.Angles(0, math.rad(-math.sin(i/2) * 20), 0)
+            wait(0.05)
+        end
+    end)
+    
+    -- Xóa Zzz
+    for _, zzz in pairs(zzzParts) do
+        spawn(function()
+            for i = 1, 10 do
+                zzz.Transparency = zzz.Transparency + 0.1
+                wait(0.05)
+            end
+            zzz:Destroy()
+        end)
+    end
+    wait(0.5)
+    zzzParts = {}
+    
+    -- Bật lại hiệu ứng
+    enableAllEffects(char)
+end
+
+-- Hàm tạo hiệu ứng (giữ nguyên)
+local function createDotEffect(char)
+    local dot = Instance.new("Part")
+    dot.Size = Vector3.new(0.2, 0.2, 0.2)
+    dot.Shape = Enum.PartType.Ball
+    dot.Material = Enum.Material.Neon
+    dot.Anchored = true
+    dot.CanCollide = false
+    dot.Transparency = 0
+    dot.Parent = workspace
+    
+    local attachment0 = Instance.new("Attachment", dot)
+    local attachment1 = Instance.new("Attachment", dot)
+    attachment1.Position = Vector3.new(0, 1, 0)
+    
+    local beam = Instance.new("Beam", dot)
+    beam.Attachment0 = attachment0
+    beam.Attachment1 = attachment1
+    beam.Width0 = 0.1
+    beam.Width1 = 0.1
+    beam.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+        ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 255, 0)),
+        ColorSequenceKeypoint.new(0.4, Color3.fromRGB(0, 255, 0)),
+        ColorSequenceKeypoint.new(0.6, Color3.fromRGB(0, 255, 255)),
+        ColorSequenceKeypoint.new(0.8, Color3.fromRGB(0, 0, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 255))
+    })
+    
+    return dot
+end
+
+local function createNumberEffect(char)
+    local numbers = {}
+    for i = 1, 10 do
+        local isOne = math.random() > 0.5
+        local num = Instance.new("Part")
+        num.Size = Vector3.new(0.5, 0.5, 0.5)
+        num.Shape = Enum.PartType.Ball
+        num.Material = Enum.Material.Neon
+        num.Color = isOne and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        num.Anchored = true
+        num.CanCollide = false
+        num.Transparency = 0
+        num.Parent = workspace
+        
+        local textLabel = Instance.new("BillboardGui", num)
+        textLabel.Size = UDim2.new(2, 0, 2, 0)
+        textLabel.AlwaysOnTop = true
+        
+        local text = Instance.new("TextLabel", textLabel)
+        text.Size = UDim2.new(1, 0, 1, 0)
+        text.BackgroundTransparency = 1
+        text.Text = isOne and "1" or "0"
+        text.TextColor3 = num.Color
+        text.TextScaled = true
+        text.Font = Enum.Font.GothamBold
+        
+        local angle = math.random() * math.pi * 2
+        local radius = 2 + math.random() * 3
+        num.Position = char.HumanoidRootPart.Position + Vector3.new(
+            math.cos(angle) * radius,
+            -1 + math.random() * 2,
+            math.sin(angle) * radius
+        )
+        
+        table.insert(numbers, num)
+    end
+    return numbers
+end
+
+local function createErrorEffect(char)
+    local errorParts = {}
+    for i = 1, 15 do
+        local errorChar = Instance.new("Part")
+        errorChar.Size = Vector3.new(0.3, 0.3, 0.3)
+        errorChar.Shape = Enum.PartType.Ball
+        errorChar.Material = Enum.Material.Neon
+        errorChar.Color = Color3.fromRGB(
+            math.random(150, 255),
+            math.random(0, 50),
+            math.random(0, 50)
+        )
+        errorChar.Anchored = true
+        errorChar.CanCollide = false
+        errorChar.Transparency = 0.2 + math.random() * 0.3
+        errorChar.Parent = workspace
+        
+        local textLabel = Instance.new("BillboardGui", errorChar)
+        textLabel.Size = UDim2.new(3, 0, 3, 0)
+        textLabel.AlwaysOnTop = true
+        
+        local text = Instance.new("TextLabel", textLabel)
+        text.Size = UDim2.new(1, 0, 1, 0)
+        text.BackgroundTransparency = 1
+        text.Text = "ERROR!"
+        text.TextColor3 = errorChar.Color
+        text.TextScaled = true
+        text.Font = Enum.Font.GothamBlack
+        
+        text.TextStrokeColor3 = Color3.fromRGB(math.random(200, 255), 0, 0)
+        text.TextStrokeTransparency = 0.5
+        text.Rotation = math.random(-15, 15)
+        
+        local angle = math.random() * math.pi * 2
+        local radius = 1 + math.random() * 2
+        errorChar.Position = char.HumanoidRootPart.Position + Vector3.new(
+            math.cos(angle) * radius,
+            -2 + math.random() * 0.5,
+            math.sin(angle) * radius
+        )
+        
+        table.insert(errorParts, errorChar)
+    end
+    return errorParts
+end
+
+local function createAuraEffect(char)
+    local auraRed = Instance.new("Part")
+    auraRed.Size = Vector3.new(3, 0.5, 3)
+    auraRed.Shape = Enum.PartType.Cylinder
+    auraRed.Material = Enum.Material.Neon
+    auraRed.Color = Color3.fromRGB(255, 0, 0)
+    auraRed.Transparency = 0.3
+    auraRed.Anchored = true
+    auraRed.CanCollide = false
+    auraRed.Parent = workspace
+    
+    local auraGreen = Instance.new("Part")
+    auraGreen.Size = Vector3.new(2.5, 0.5, 2.5)
+    auraGreen.Shape = Enum.PartType.Cylinder
+    auraGreen.Material = Enum.Material.Neon
+    auraGreen.Color = Color3.fromRGB(0, 255, 0)
+    auraGreen.Transparency = 0.3
+    auraGreen.Anchored = true
+    auraGreen.CanCollide = false
+    auraGreen.Parent = workspace
+    
+    return auraRed, auraGreen
+end
+
+local function updateEffects(char)
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    if not effectActive then return end
+    
+    local rootPart = char.HumanoidRootPart
+    local rootPos = rootPart.Position
+    
+    for _, v in pairs(auraParts) do v:Destroy() end
+    for _, v in pairs(dotParts) do v:Destroy() end
+    for _, v in pairs(numberParts) do v:Destroy() end
+    for _, v in pairs(errorParts) do v:Destroy() end
+    auraParts = {}
+    dotParts = {}
+    numberParts = {}
+    errorParts = {}
+    
+    if not isEnabled then return end
+    
+    local auraRed, auraGreen = createAuraEffect(char)
+    auraRed.Position = rootPos - Vector3.new(0, 2, 0)
+    auraGreen.Position = rootPos - Vector3.new(0, 2.5, 0)
+    table.insert(auraParts, auraRed)
+    table.insert(auraParts, auraGreen)
+    
+    for i = 1, 20 do
+        local dot = createDotEffect(char)
+        local angle = (i / 20) * math.pi * 2
+        local radius = 1.5 + math.random() * 2
+        dot.Position = rootPos + Vector3.new(
+            math.cos(angle) * radius,
+            -1 + math.random() * 0.5,
+            math.sin(angle) * radius
+        )
+        table.insert(dotParts, dot)
+    end
+    
+    local nums = createNumberEffect(char)
+    for _, num in pairs(nums) do
+        table.insert(numberParts, num)
+    end
+    
+    local errors = createErrorEffect(char)
+    for _, err in pairs(errors) do
+        table.insert(errorParts, err)
+    end
+end
+
+-- Toggle chính (Rayfield Gen2 chuẩn)
+local Toggle = MainTab:CreateToggle({
+    name = "TheKill Evolution (Enhance yourself)",
+    callback = function(Value)
+        isEnabled = Value
+        local player = game.Players.LocalPlayer
+        local char = player.Character
+        
+        if Value then
+            -- Reset biến tốc độ
+            speedBoosted = false
+            speedIncreaseTime = 0
+            
+            -- Đặt tốc độ ban đầu
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.WalkSpeed = baseSpeed
+            end
+            
+            afkTimer = 0
+            effectActive = true
+            
+            -- Loop quản lý tốc độ (đếm ngược 5 phút)
+            spawn(function()
+                while isEnabled and char and char:FindFirstChild("Humanoid") do
+                    if not speedBoosted then
+                        speedIncreaseTime = speedIncreaseTime + 1
+                        
+                        -- Hiển thị thời gian còn lại (mỗi 10 giây)
+                        if speedIncreaseTime % 10 == 0 then
+                            local remaining = math.floor((requiredTime - speedIncreaseTime) / 60)
+                            local seconds = math.floor((requiredTime - speedIncreaseTime) % 60)
+                            if remaining >= 0 then
+                                print("Time until speed boost: " .. remaining .. "m " .. seconds .. "s")
+                            end
+                        end
+                        
+                        -- Kiểm tra nếu đủ 5 phút
+                        if speedIncreaseTime >= requiredTime then
+                            applySpeedBoost(char)
+                        end
+                    end
+                    wait(1)
+                end
+            end)
+            
+            -- Loop xử lý hiệu ứng (giữ nguyên)
+            spawn(function()
+                local elapsed = 0
+                while isEnabled and char and char:FindFirstChild("HumanoidRootPart") do
+                    local rootPart = char.HumanoidRootPart
+                    local rootPos = rootPart.Position
+                    elapsed = elapsed + 0.05
+                    
+                    local humanoid = char:FindFirstChild("Humanoid")
+                    if humanoid then
+                        local isMoving = humanoid.MoveDirection.Magnitude > 0.1
+                        if not isMoving then
+                            afkTimer = afkTimer + 0.05
+                            if afkTimer >= 10 and not isSleeping and humanoid.RigType == Enum.HumanoidRigType.R6 then
+                                if isMale then
+                                    createAfkAnimationMale(char)
+                                end
+                            end
+                        else
+                            afkTimer = 0
+                            if isSleeping then
+                                wakeUpMale(char)
+                            end
+                        end
+                    end
+                    
+                    -- Chỉ cập nhật hiệu ứng khi không ngủ
+                    if not isSleeping and effectActive then
+                        -- Cập nhật aura
+                        for _, part in pairs(auraParts) do
+                            if part and part.Parent then
+                                if part.Color == Color3.fromRGB(255, 0, 0) then
+                                    part.Position = rootPos - Vector3.new(0, 2, 0)
+                                    part.Size = Vector3.new(3, 0.5 + math.sin(tick() * 2) * 0.2, 3)
+                                    part.Transparency = 0.3 + math.sin(tick() * 0.5) * 0.1
+                                else
+                                    part.Position = rootPos - Vector3.new(0, 2.5, 0)
+                                    part.Size = Vector3.new(2.5, 0.5 + math.sin(tick() * 3) * 0.2, 2.5)
+                                    part.Transparency = 0.3 + math.sin(tick() * 0.7) * 0.1
+                                end
+                            end
+                        end
+                        
+                        -- Cập nhật dot
+                        for i, dot in pairs(dotParts) do
+                            if dot and dot.Parent then
+                                local angle = (i / #dotParts) * math.pi * 2 + tick() * 0.5
+                                local radius = 1.5 + math.sin(tick() + i) * 1.5
+                                dot.Position = rootPos + Vector3.new(
+                                    math.cos(angle) * radius,
+                                    -1 + math.sin(tick() * 0.5 + i) * 0.5,
+                                    math.sin(angle) * radius
+                                )
+                                local hue = (tick() * 0.1 + i / #dotParts) % 1
+                                dot.Color = Color3.fromHSV(hue, 1, 1)
+                                local moveFactor = humanoid and humanoid.MoveDirection.Magnitude or 0
+                                dot.Transparency = 0.3 + math.sin(tick() * 0.5 + i) * 0.2 + moveFactor * 0.5
+                            end
+                        end
+                        
+                        -- Cập nhật số
+                        for i, num in pairs(numberParts) do
+                            if num and num.Parent then
+                                local angle = (i / #numberParts) * math.pi * 2 + tick() * 0.3
+                                local radius = 2 + math.sin(tick() * 0.5 + i) * 1.5
+                                local yPos = -1 + (tick() * 0.2 + i * 0.1) % 3
+                                
+                                if yPos < 1.5 then
+                                    num.Position = rootPos + Vector3.new(
+                                        math.cos(angle) * radius,
+                                        yPos,
+                                        math.sin(angle) * radius
+                                    )
+                                    num.Position = num.Position + Vector3.new(
+                                        math.sin(tick() * 10 + i) * 0.1,
+                                        0,
+                                        math.cos(tick() * 10 + i) * 0.1
+                                    )
+                                else
+                                    local splitAngle = angle + math.sin(tick() * 2 + i) * 0.5
+                                    num.Position = rootPos + Vector3.new(
+                                        math.cos(splitAngle) * (radius + math.sin(tick() * 3 + i) * 0.5),
+                                        1.5 + math.sin(tick() * 0.5 + i) * 0.2,
+                                        math.sin(splitAngle) * (radius + math.cos(tick() * 3 + i) * 0.5)
+                                    )
+                                    num.Transparency = math.min(num.Transparency + 0.01, 1)
+                                end
+                            end
+                        end
+                        
+                        -- Cập nhật Error!
+                        for i, err in pairs(errorParts) do
+                            if err and err.Parent then
+                                local angle = (i / #errorParts) * math.pi * 2 + tick() * 0.2
+                                local radius = 1 + math.sin(tick() * 0.3 + i) * 1.5
+                                local yPos = -2 + (tick() * 0.15 + i * 0.05) % 3.5
+                                
+                                if yPos < 2.5 then
+                                    err.Position = rootPos + Vector3.new(
+                                        math.cos(angle) * radius,
+                                        yPos,
+                                        math.sin(angle) * radius
+                                    )
+                                    err.Position = err.Position + Vector3.new(
+                                        math.sin(tick() * 15 + i * 2) * 0.15,
+                                        math.cos(tick() * 12 + i * 1.5) * 0.15,
+                                        math.sin(tick() * 18 + i * 2.5) * 0.15
+                                    )
+                                    err.Color = Color3.fromRGB(
+                                        math.random(150, 255),
+                                        math.random(0, 50),
+                                        math.random(0, 50)
+                                    )
+                                    err.Transparency = 0.2 + math.sin(tick() * 2 + i) * 0.3
+                                else
+                                    err.Position = rootPos + Vector3.new(
+                                        math.cos(angle + tick() * 2) * (radius + math.sin(tick() * 4 + i) * 0.3),
+                                        2.5 + math.sin(tick() * 0.3 + i) * 0.2,
+                                        math.sin(angle + tick() * 2) * (radius + math.cos(tick() * 4 + i) * 0.3)
+                                    )
+                                    err.Transparency = math.min(err.Transparency + 0.015, 1)
+                                    err.Position = err.Position + Vector3.new(
+                                        math.sin(tick() * 8 + i) * 0.05 * (1 - err.Transparency),
+                                        0,
+                                        math.cos(tick() * 8 + i) * 0.05 * (1 - err.Transparency)
+                                    )
+                                end
+                            end
+                        end
+                    end
+                    
+                    wait(0.05)
+                end
+            end)
+            
+        else
+            -- Tắt: reset
+            speedBoosted = false
+            speedIncreaseTime = 0
+            
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.WalkSpeed = baseSpeed
+                if isSleeping then
+                    wakeUpMale(char)
+                end
+            end
+            
+            -- Xóa tất cả
+            for _, v in pairs(auraParts) do
+                spawn(function()
+                    for i = 1, 10 do
+                        v.Transparency = v.Transparency + 0.1
+                        wait(0.05)
+                    end
+                    v:Destroy()
+                end)
+            end
+            
+            for _, v in pairs(dotParts) do
+                spawn(function()
+                    for i = 1, 10 do
+                        v.Transparency = v.Transparency + 0.1
+                        wait(0.05)
+                    end
+                    v:Destroy()
+                end)
+            end
+            
+            for _, v in pairs(numberParts) do
+                spawn(function()
+                    for i = 1, 10 do
+                        v.Transparency = v.Transparency + 0.1
+                        wait(0.05)
+                    end
+                    v:Destroy()
+                end)
+            end
+            
+            for _, v in pairs(errorParts) do
+                spawn(function()
+                    for i = 1, 10 do
+                        v.Transparency = v.Transparency + 0.1
+                        wait(0.05)
+                    end
+                    v:Destroy()
+                end)
+            end
+            
+            wait(0.5)
+            auraParts = {}
+            dotParts = {}
+            numberParts = {}
+            errorParts = {}
+            isSleeping = false
+            afkTimer = 0
+            effectActive = true
+        end
+    end
+})
+
+game.Players.LocalPlayer.CharacterAdded:Connect(function(char)
+    if isEnabled then
+        wait(1)
+        updateEffects(char)
+        speedBoosted = false
+        speedIncreaseTime = 0
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.WalkSpeed = baseSpeed
+        end
+    end
+end)
+
+game.Players.LocalPlayer.CharacterRemoving:Connect(function()
+    for _, v in pairs(auraParts) do v:Destroy() end
+    for _, v in pairs(dotParts) do v:Destroy() end
+    for _, v in pairs(numberParts) do v:Destroy() end
+    for _, v in pairs(errorParts) do v:Destroy() end
+    for _, v in pairs(zzzParts) do v:Destroy() end
+    auraParts = {}
+    dotParts = {}
+    numberParts = {}
+    errorParts = {}
+    zzzParts = {}
+    isSleeping = false
+    speedBoosted = false
+    speedIncreaseTime = 0
+end)
+
+print("Rayfield Gen2 Script with 1-time Speed Boost (16→17) loaded!")
