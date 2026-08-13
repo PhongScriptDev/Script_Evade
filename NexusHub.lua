@@ -66,6 +66,7 @@ local versionTag = window:CreateTag({
     color = Color3.fromRGB(100, 200, 255),
 })
 
+
 -- ===== TẠO TAG FPS =====
 local fpsTag = window:CreateTag({
     text = "FPS: 0",
@@ -129,9 +130,11 @@ local itemCount = 0
 local noItemTimer = 0
 local collectedItems = 0
 local currentEventItem = "Bubble"
+local isWaitingForVote = false
+local voteCheckTimer = 0
 
--- Vị trí tường
-local WALL_POSITION = Vector3.new(10000, -500, 10000)
+-- ===== VỊ TRÍ TƯỜNG (ĐÃ CHỈNH) =====
+local WALL_POSITION = Vector3.new(5000, -500, 5000)
 
 -- ===== DANH SÁCH 20 VẬT PHẨM SỰ KIỆN =====
 local EventItems = {
@@ -178,6 +181,30 @@ local function Toast(title, subtitle, duration)
             duration = duration,
         })
     end)
+end
+
+-- ===== KIỂM TRA BÌNH CHỌN =====
+local function CheckVoteStatus()
+    local player = game.Players.LocalPlayer
+    if not player then return false end
+    
+    local voteTime = game:GetService("ReplicatedStorage"):FindFirstChild("VoteTime")
+    if voteTime and voteTime.Value > 0 then
+        return true, "⏳ Đang trong thời gian bình chọn..."
+    end
+    
+    local playerGui = player.PlayerGui
+    if playerGui then
+        for _, gui in ipairs(playerGui:GetChildren()) do
+            if gui.Name == "Vote" or gui.Name == "Voting" or string.find(gui.Name, "Vote") then
+                if gui.Enabled then
+                    return true, "⏳ Đang bình chọn map..."
+                end
+            end
+        end
+    end
+    
+    return false, nil
 end
 
 -- ===== KIỂM TRA DANH SÁCH VẬT PHẨM =====
@@ -283,13 +310,6 @@ local function getClosestSafeItem(hrp, items)
     return closest
 end
 
-local function teleportTo(hrp, pos, duration)
-    local TweenService = game:GetService("TweenService")
-    local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(pos)})
-    tween:Play()
-    tween.Completed:Wait()
-end
-
 -- ===== TẠO TƯỜNG =====
 local function CreateWall()
     pcall(function()
@@ -351,6 +371,33 @@ local function CreateWallLv()
     Toast("✅ Tường Lv", "Đã tạo xong", 2)
     
     return wallModelLv
+end
+
+-- ===== TỰ ĐỘNG TẠO LẠI TƯỜNG KHI BÌNH CHỌN XONG =====
+local function RecreateWallIfNeeded()
+    if isFarming and wallModel then
+        pcall(function()
+            local wallExists = wallModel and wallModel.Parent ~= nil
+            if not wallExists then
+                Notify("Farm Event", "🔄 Tường đã biến mất, đang tạo lại...", 2)
+                CreateWall()
+                task.wait(0.5)
+                TeleportToWall()
+            end
+        end)
+    end
+    
+    if isFarmingLv and wallModelLv then
+        pcall(function()
+            local wallExists = wallModelLv and wallModelLv.Parent ~= nil
+            if not wallExists then
+                Notify("Farm Lv", "🔄 Tường đã biến mất, đang tạo lại...", 2)
+                CreateWallLv()
+                task.wait(0.5)
+                TeleportToWallLv()
+            end
+        end)
+    end
 end
 
 -- ===== TELEPORT =====
@@ -472,6 +519,23 @@ end
 local function FarmEventLoop()
     if not isFarming then return end
     
+    local isVoting, voteMsg = CheckVoteStatus()
+    if isVoting then
+        if not isWaitingForVote then
+            isWaitingForVote = true
+            Notify("Farm Event", voteMsg, 2)
+            Toast("⏳ Chờ", "Đang bình chọn...", 2)
+        end
+        task.wait(2)
+        if isFarming then
+            FarmEventLoop()
+        end
+        return
+    end
+    isWaitingForVote = false
+    
+    RecreateWallIfNeeded()
+    
     local player = game.Players.LocalPlayer
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -545,6 +609,7 @@ local function StartFarmEvent()
     isFarming = true
     noItemTimer = 0
     collectedItems = 0
+    isWaitingForVote = false
     
     Notify("Farm Event", "🚀 Đang khởi động Farm Event...", 2)
     Toast("🚀 Khởi động", "Farm Event", 2)
@@ -560,6 +625,7 @@ end
 local function StopFarmEvent()
     isFarming = false
     noItemTimer = 0
+    isWaitingForVote = false
     
     pcall(function()
         if wallModel then
@@ -576,6 +642,23 @@ end
 -- ===== FARM LV =====
 local function FarmLvLoop()
     if not isFarmingLv then return end
+    
+    local isVoting, voteMsg = CheckVoteStatus()
+    if isVoting then
+        if not isWaitingForVote then
+            isWaitingForVote = true
+            Notify("Farm Lv", voteMsg, 2)
+            Toast("⏳ Chờ", "Đang bình chọn...", 2)
+        end
+        task.wait(2)
+        if isFarmingLv then
+            FarmLvLoop()
+        end
+        return
+    end
+    isWaitingForVote = false
+    
+    RecreateWallIfNeeded()
     
     if not wallModelLv then
         CreateWallLv()
@@ -631,6 +714,7 @@ local function StartFarmLv()
         StopFarmEvent()
     end
     isFarmingLv = true
+    isWaitingForVote = false
     CreateWallLv()
     task.wait(1)
     TeleportToWallLv()
@@ -639,6 +723,7 @@ end
 
 local function StopFarmLv()
     isFarmingLv = false
+    isWaitingForVote = false
     pcall(function()
         if wallModelLv then
             wallModelLv:Destroy()
@@ -674,13 +759,15 @@ farmLvToggle = farmTab:CreateToggle({
     end,
 })
 
--- ===== KIỂM TRA XUỐNG TƯỜNG =====
+-- ===== KIỂM TRA XUỐNG TƯỜNG VÀ TẠO LẠI TƯỜNG =====
 game:GetService("RunService").Heartbeat:Connect(function()
     if isFarming then
         CheckFallOffWall()
+        RecreateWallIfNeeded()
     end
     if isFarmingLv then
         CheckFallOffWallLv()
+        RecreateWallIfNeeded()
     end
 end)
 
@@ -703,3 +790,4 @@ end)
 print("Evade Event Farm đã được tải thành công!")
 print("Sử dụng Rayfield Gen2 - Nhấn RightControl để mở UI")
 print("Hỗ trợ Farm Event và Farm Lv!")
+print("🔄 Tự động tạo lại tường khi bình chọn xong!")
