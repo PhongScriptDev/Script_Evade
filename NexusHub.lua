@@ -60,6 +60,12 @@ window:Notify({
 })
 
 
+-- ===== TẠO TAG VERSION =====
+local versionTag = window:CreateTag({
+    text = "⚡ Version: 2.1.7",
+    color = Color3.fromRGB(100, 200, 255),
+})
+
 -- ===== TẠO TAG FPS =====
 local fpsTag = window:CreateTag({
     text = "FPS: 0",
@@ -113,28 +119,16 @@ local farmTab = window:CreateTab({
 -- ===== BIẾN =====
 local isFarming = false
 local isFarmingLv = false
-local isAutoDetect = false
 local wallModel = nil
 local wallModelLv = nil
 local isTeleporting = false
 local isTeleportingLv = false
 local farmEventToggle = nil
 local farmLvToggle = nil
-local autoDetectToggle = nil
 local itemCount = 0
 local noItemTimer = 0
 local collectedItems = 0
 local currentEventItem = "Bubble"
-local detectedItemName = nil
-local detectedItemShape = nil
-local isDetecting = false
-
--- Biến Anti AFK & Gameplay Pause
-local antiAFKActive = false
-local antiGameplayPauseActive = false
-local afkTimer = 0
-local gameplayPauseDetected = false
-local isMovingRandomly = false
 
 -- Vị trí tường
 local WALL_POSITION = Vector3.new(10000, -500, 10000)
@@ -186,312 +180,6 @@ local function Toast(title, subtitle, duration)
     end)
 end
 
--- ===== TỰ ĐỘNG DI CHUYỂN NHẸ =====
-local function RandomMovement()
-    if isMovingRandomly then return end
-    isMovingRandomly = true
-    
-    pcall(function()
-        local player = game.Players.LocalPlayer
-        if not player or not player.Character then
-            isMovingRandomly = false
-            return
-        end
-        
-        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        
-        if not hrp or not humanoid then
-            isMovingRandomly = false
-            return
-        end
-        
-        -- Kiểm tra nếu đang ở trên tường
-        local model = isFarming and wallModel or wallModelLv
-        if model then
-            local wallPos = model:GetPivot().Position
-            local dist = (hrp.Position - wallPos).Magnitude
-            if dist > 50 then
-                isMovingRandomly = false
-                return
-            end
-        end
-        
-        -- Lưu vị trí hiện tại
-        local currentPos = hrp.Position
-        
-        -- Di chuyển ngẫu nhiên trong bán kính 2 units
-        local angle = math.random() * 2 * math.pi
-        local radius = math.random(10, 20) / 10 -- 1.0 đến 2.0 units
-        local offset = Vector3.new(
-            math.cos(angle) * radius,
-            0,
-            math.sin(angle) * radius
-        )
-        
-        local targetPos = currentPos + offset
-        
-        -- Di chuyển từ từ đến vị trí mới
-        local steps = 10
-        for i = 1, steps do
-            local t = i / steps
-            local newPos = currentPos:Lerp(targetPos, t)
-            hrp.CFrame = CFrame.new(newPos)
-            task.wait(0.02)
-        end
-        
-        -- Đứng yên 1 chút
-        task.wait(math.random(10, 30) / 10) -- 1-3 giây
-        
-        -- Quay lại vị trí cũ
-        for i = 1, steps do
-            local t = i / steps
-            local newPos = targetPos:Lerp(currentPos, t)
-            hrp.CFrame = CFrame.new(newPos)
-            task.wait(0.02)
-        end
-        
-        isMovingRandomly = false
-    end)
-end
-
--- ===== ANTI AFK - KHÔNG LỖI 20 PHÚT =====
-local function StartAntiAFK()
-    if antiAFKActive then return end
-    antiAFKActive = true
-    afkTimer = 0
-    
-    Notify("🛡️ Anti AFK", "Đã kích hoạt chống AFK!", 3)
-    Toast("🛡️ Anti AFK", "Đang hoạt động", 2)
-    
-    task.spawn(function()
-        while antiAFKActive and (isFarming or isFarmingLv) do
-            task.wait(20) -- Kiểm tra mỗi 20 giây
-            
-            if not (isFarming or isFarmingLv) then
-                antiAFKActive = false
-                break
-            end
-            
-            afkTimer = afkTimer + 0.333
-            
-            -- Mỗi 2 phút thực hiện chống AFK
-            if afkTimer >= 2 then
-                afkTimer = 0
-                
-                pcall(function()
-                    local player = game.Players.LocalPlayer
-                    if player then
-                        -- Cách 1: VirtualUser Click
-                        local VirtualUser = game:GetService("VirtualUser")
-                        VirtualUser:CaptureController()
-                        VirtualUser:ClickButton2(Vector2.new(0, 0))
-                        
-                        -- Cách 2: Gửi tín hiệu phím giả
-                        local UserInputService = game:GetService("UserInputService")
-                        if UserInputService then
-                            local keys = {Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D}
-                            for _, key in ipairs(keys) do
-                                UserInputService:SetKeyDown(key)
-                                task.wait(0.03)
-                                UserInputService:SetKeyUp(key)
-                                task.wait(0.03)
-                            end
-                        end
-                        
-                        -- Cách 3: Tự động di chuyển nhẹ
-                        if math.random(1, 3) == 1 then
-                            RandomMovement()
-                        end
-                        
-                        -- Cách 4: Gửi tín hiệu chuột giả
-                        local mouse = player:GetMouse()
-                        if mouse then
-                            local currentPos = Vector2.new(mouse.X, mouse.Y)
-                            local offset = Vector2.new(math.random(-10, 10), math.random(-10, 10))
-                            mouse.X = currentPos.X + offset.X
-                            mouse.Y = currentPos.Y + offset.Y
-                            task.wait(0.05)
-                            mouse.X = currentPos.X
-                            mouse.Y = currentPos.Y
-                        end
-                        
-                        -- Cách 5: Bắt sự kiện Idled
-                        if player.Idled then
-                            player.Idled:Connect(function()
-                                VirtualUser:ClickButton2(Vector2.new(0, 0))
-                            end)
-                        end
-                        
-                        Toast("🛡️ Anti AFK", "Đã gửi tín hiệu", 1)
-                    end
-                end)
-            end
-        end
-    end)
-end
-
-local function StopAntiAFK()
-    antiAFKActive = false
-    afkTimer = 0
-    isMovingRandomly = false
-    Notify("🛡️ Anti AFK", "Đã tắt!", 2)
-    Toast("🛡️ Anti AFK", "Đã tắt", 2)
-end
-
--- ===== ANTI GAMEPLAY PAUSE - KHÔNG BỊ TELEPORT 1 CHỖ =====
-local function StartAntiGameplayPause()
-    if antiGameplayPauseActive then return end
-    antiGameplayPauseActive = true
-    gameplayPauseDetected = false
-    
-    Notify("🛡️ Anti Gameplay Pause", "Đã kích hoạt!", 3)
-    Toast("🛡️ Anti Pause", "Đang hoạt động", 2)
-    
-    -- Luồng 1: Phát hiện và chống Gameplay Pause
-    task.spawn(function()
-        while antiGameplayPauseActive and (isFarming or isFarmingLv) do
-            task.wait(1)
-            
-            if not (isFarming or isFarmingLv) then
-                antiGameplayPauseActive = false
-                break
-            end
-            
-            pcall(function()
-                local player = game.Players.LocalPlayer
-                if player then
-                    -- Kiểm tra Gameplay Pause GUI
-                    local gui = player.PlayerGui:FindFirstChild("GameplayPause")
-                    if gui and gui.Enabled then
-                        gameplayPauseDetected = true
-                        
-                        -- Chống Gameplay Pause bằng nhiều cách
-                        local VirtualUser = game:GetService("VirtualUser")
-                        VirtualUser:CaptureController()
-                        VirtualUser:ClickButton2(Vector2.new(0, 0))
-                        task.wait(0.1)
-                        VirtualUser:ClickButton2(Vector2.new(0, 0))
-                        
-                        -- Tắt GUI nếu vẫn còn
-                        if gui and gui.Enabled then
-                            gui.Enabled = false
-                        end
-                        
-                        -- Gửi tín hiệu phím giả
-                        local UserInputService = game:GetService("UserInputService")
-                        if UserInputService then
-                            UserInputService:SetKeyDown(Enum.KeyCode.W)
-                            task.wait(0.05)
-                            UserInputService:SetKeyUp(Enum.KeyCode.W)
-                            UserInputService:SetKeyDown(Enum.KeyCode.Space)
-                            task.wait(0.05)
-                            UserInputService:SetKeyUp(Enum.KeyCode.Space)
-                        end
-                        
-                        -- Di chuyển nhẹ để thoát pause
-                        RandomMovement()
-                        
-                        Toast("🛡️ Anti Pause", "Đã chống!", 1)
-                        gameplayPauseDetected = false
-                    end
-                    
-                    -- Kiểm tra các GUI khác
-                    for _, guiItem in ipairs(player.PlayerGui:GetChildren()) do
-                        if guiItem.Name == "Pause" or guiItem.Name == "GameplayPaused" or guiItem.Name == "AFK" then
-                            if guiItem.Enabled then
-                                guiItem.Enabled = false
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-    
-    -- Luồng 2: Gửi tín hiệu liên tục và di chuyển nhẹ
-    task.spawn(function()
-        while antiGameplayPauseActive and (isFarming or isFarmingLv) do
-            task.wait(3) -- Gửi tín hiệu mỗi 3 giây
-            
-            if not (isFarming or isFarmingLv) then
-                break
-            end
-            
-            pcall(function()
-                local player = game.Players.LocalPlayer
-                if player and player.Character then
-                    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                    local humanoid = player.Character:FindFirstChild("Humanoid")
-                    
-                    if hrp and humanoid then
-                        -- Lưu vị trí hiện tại
-                        local currentPos = hrp.Position
-                        
-                        -- Gửi tín hiệu VirtualUser
-                        local VirtualUser = game:GetService("VirtualUser")
-                        VirtualUser:CaptureController()
-                        VirtualUser:ClickButton2(Vector2.new(0, 0))
-                        
-                        -- Mô phỏng di chuyển nhẹ (không teleport)
-                        if math.random(1, 2) == 1 then
-                            local offset = Vector3.new(
-                                math.random(-15, 15) / 10,
-                                0,
-                                math.random(-15, 15) / 10
-                            )
-                            
-                            if offset.Magnitude > 0.1 then
-                                -- Di chuyển từ từ
-                                local targetPos = currentPos + offset
-                                local steps = 5
-                                for i = 1, steps do
-                                    local t = i / steps
-                                    local newPos = currentPos:Lerp(targetPos, t)
-                                    hrp.CFrame = CFrame.new(newPos)
-                                    task.wait(0.02)
-                                end
-                                
-                                -- Quay lại vị trí cũ
-                                for i = 1, steps do
-                                    local t = i / steps
-                                    local newPos = targetPos:Lerp(currentPos, t)
-                                    hrp.CFrame = CFrame.new(newPos)
-                                    task.wait(0.02)
-                                end
-                            end
-                        end
-                        
-                        -- Mô phỏng nhấn phím di chuyển
-                        local UserInputService = game:GetService("UserInputService")
-                        if UserInputService and math.random(1, 3) == 1 then
-                            local randomKey = math.random(1, 4)
-                            local key = {
-                                Enum.KeyCode.W,
-                                Enum.KeyCode.A,
-                                Enum.KeyCode.S,
-                                Enum.KeyCode.D
-                            }[randomKey]
-                            
-                            UserInputService:SetKeyDown(key)
-                            task.wait(0.05)
-                            UserInputService:SetKeyUp(key)
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-end
-
-local function StopAntiGameplayPause()
-    antiGameplayPauseActive = false
-    gameplayPauseDetected = false
-    isMovingRandomly = false
-    Notify("🛡️ Anti Gameplay Pause", "Đã tắt!", 2)
-    Toast("🛡️ Anti Pause", "Đã tắt", 2)
-end
-
 -- ===== KIỂM TRA DANH SÁCH VẬT PHẨM =====
 local function CheckEventItemsList()
     local validItems = {}
@@ -517,98 +205,6 @@ local function CheckEventItemsList()
     return true, "Đang tìm vật phẩm sự kiện...", validItems
 end
 
--- ===== GHI NHỚ HÌNH DẠNG VẬT PHẨM =====
-local function MemorizeItemShape(item)
-    if not item then return end
-    
-    local shapeData = {
-        Name = item.Name,
-        Size = item.Size,
-        Color = item.BrickColor,
-        Material = item.Material,
-        Position = item.Position
-    }
-    
-    detectedItemShape = shapeData
-    detectedItemName = item.Name
-    
-    Notify("🧠 Ghi nhớ", "Đã ghi nhớ hình dạng: " .. item.Name, 3)
-    Toast("🧠 Ghi nhớ", item.Name, 2)
-    
-    for i, v in ipairs(EventItems) do
-        if v ~= "none" then
-            EventItems[i] = item.Name
-            break
-        end
-    end
-end
-
--- ===== TỰ ĐỘNG PHÁT HIỆN VẬT PHẨM =====
-local function SmartDetectEvent()
-    if not isAutoDetect or not isFarming then return nil end
-    if isDetecting then return nil end
-    
-    isDetecting = true
-    local foundItem = nil
-    
-    local allParts = game.Workspace:GetDescendants()
-    local player = game.Players.LocalPlayer
-    
-    for _, obj in ipairs(allParts) do
-        if obj:IsA("BasePart") and obj.Parent then
-            local isCharacter = false
-            local currentParent = obj.Parent
-            while currentParent do
-                if currentParent:IsA("Model") and currentParent:FindFirstChild("Humanoid") then
-                    isCharacter = true
-                    break
-                end
-                currentParent = currentParent.Parent
-            end
-            
-            if not isCharacter then
-                local isEventItem = false
-                for _, eventName in ipairs(EventItems) do
-                    if eventName ~= "none" and string.find(string.lower(obj.Name), string.lower(eventName)) then
-                        isEventItem = true
-                        break
-                    end
-                end
-                
-                if isEventItem then
-                    foundItem = obj
-                    break
-                end
-            end
-        end
-    end
-    
-    isDetecting = false
-    
-    if foundItem then
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            TeleportWithEmote(foundItem.Position, foundItem.CFrame, false, false)
-            task.wait(2)
-            
-            if not foundItem.Parent then
-                MemorizeItemShape(foundItem)
-                Notify("🔍 Phát hiện", "Vật phẩm mới: " .. foundItem.Name, 3)
-                Toast("🔍 Phát hiện", foundItem.Name, 2)
-                
-                if wallModel then
-                    local wallPos = wallModel:GetPivot().Position
-                    TeleportWithEmote(Vector3.new(wallPos.X, wallPos.Y + 1, wallPos.Z), nil, true, false)
-                end
-                
-                return foundItem.Name
-            end
-        end
-    end
-    
-    return nil
-end
-
 -- ===== KIỂM TRA VẬT PHẨM =====
 local function isPlayerAsset(instance)
     local Players = game:GetService("Players")
@@ -627,8 +223,6 @@ local function getAllItems()
     if not valid then
         return items
     end
-    
-    local foundAny = false
     
     for _, v in pairs(workspace:GetDescendants()) do
         if (v:IsA("BasePart") or v:IsA("Model")) then
@@ -650,26 +244,11 @@ local function getAllItems()
                                 Name = v.Name,
                                 Type = eventName
                             })
-                            foundAny = true
                         end
                     end
                     break
                 end
             end
-        end
-    end
-    
-    if not foundAny and isAutoDetect and isFarming then
-        local detected = SmartDetectEvent()
-        if detected then
-            for i, item in ipairs(EventItems) do
-                if item ~= "none" then
-                    EventItems[i] = detected
-                    currentEventItem = detected
-                    break
-                end
-            end
-            return getAllItems()
         end
     end
     
@@ -702,6 +281,13 @@ local function getClosestSafeItem(hrp, items)
         end
     end
     return closest
+end
+
+local function teleportTo(hrp, pos, duration)
+    local TweenService = game:GetService("TweenService")
+    local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(pos)})
+    tween:Play()
+    tween.Completed:Wait()
 end
 
 -- ===== TẠO TƯỜNG =====
@@ -963,10 +549,6 @@ local function StartFarmEvent()
     Notify("Farm Event", "🚀 Đang khởi động Farm Event...", 2)
     Toast("🚀 Khởi động", "Farm Event", 2)
     
-    -- Kích hoạt Anti AFK & Gameplay Pause
-    StartAntiAFK()
-    StartAntiGameplayPause()
-    
     CreateWall()
     task.wait(1)
     TeleportToWall()
@@ -978,10 +560,6 @@ end
 local function StopFarmEvent()
     isFarming = false
     noItemTimer = 0
-    
-    -- Tắt Anti AFK & Gameplay Pause
-    StopAntiAFK()
-    StopAntiGameplayPause()
     
     pcall(function()
         if wallModel then
@@ -1053,11 +631,6 @@ local function StartFarmLv()
         StopFarmEvent()
     end
     isFarmingLv = true
-    
-    -- Kích hoạt Anti AFK & Gameplay Pause
-    StartAntiAFK()
-    StartAntiGameplayPause()
-    
     CreateWallLv()
     task.wait(1)
     TeleportToWallLv()
@@ -1066,11 +639,6 @@ end
 
 local function StopFarmLv()
     isFarmingLv = false
-    
-    -- Tắt Anti AFK & Gameplay Pause
-    StopAntiAFK()
-    StopAntiGameplayPause()
-    
     pcall(function()
         if wallModelLv then
             wallModelLv:Destroy()
@@ -1106,34 +674,6 @@ farmLvToggle = farmTab:CreateToggle({
     end,
 })
 
-autoDetectToggle = farmTab:CreateToggle({
-    name = "Auto-Detect Event",
-    flag = "AutoDetectToggle",
-    callback = function(value)
-        if value then
-            if not isFarming then
-                Notify("⚠️ Cảnh báo", "Phải bật Farm Event trước!", 3)
-                Toast("⚠️ Lỗi", "Cần Farm Event", 2)
-                autoDetectToggle:SetValue(false)
-                return
-            end
-            if isFarmingLv then
-                Notify("⚠️ Cảnh báo", "Không thể dùng với Farm Lv!", 3)
-                Toast("⚠️ Lỗi", "Đang chạy Farm Lv", 2)
-                autoDetectToggle:SetValue(false)
-                return
-            end
-            isAutoDetect = true
-            Notify("🔍 Auto-Detect", "Đã bật phát hiện thông minh!", 3)
-            Toast("🔍 Auto-Detect", "Đang quét...", 2)
-        else
-            isAutoDetect = false
-            Notify("🔍 Auto-Detect", "Đã tắt phát hiện thông minh!", 3)
-            Toast("🔍 Auto-Detect", "Đã tắt", 2)
-        end
-    end,
-})
-
 -- ===== KIỂM TRA XUỐNG TƯỜNG =====
 game:GetService("RunService").Heartbeat:Connect(function()
     if isFarming then
@@ -1162,4 +702,4 @@ end)
 
 print("Evade Event Farm đã được tải thành công!")
 print("Sử dụng Rayfield Gen2 - Nhấn RightControl để mở UI")
-print("🛡️ Anti AFK (tự động di chuyển nhẹ) & Anti Gameplay Pause đã sẵn sàng!")
+print("Hỗ trợ Farm Event và Farm Lv!")
