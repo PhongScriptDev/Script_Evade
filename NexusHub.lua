@@ -106,55 +106,62 @@ UpdateFpsTag()
 
 -- ===== TẠO TAB =====
 local farmTab = window:CreateTab({
-    name = "Summer 2026",
+    name = "Event Farm",
     icon = "rbxassetid://93364949241311"
 })
 
 -- ===== BIẾN =====
 local isFarming = false
 local isFarmingLv = false
+local isAutoDetect = false
 local wallModel = nil
 local wallModelLv = nil
 local isTeleporting = false
 local isTeleportingLv = false
 local farmEventToggle = nil
 local farmLvToggle = nil
+local autoDetectToggle = nil
 local itemCount = 0
 local noItemTimer = 0
 local collectedItems = 0
-local rewardCoins = 0
-local rewardExp = 0
-local rewardEventItems = 0
+local currentEventItem = "Bubble"
+local detectedItemName = nil
+local detectedItemShape = nil
+local isDetecting = false
+
+-- Biến Anti AFK & Gameplay Pause
+local antiAFKActive = false
+local antiGameplayPauseActive = false
+local afkTimer = 0
+local gameplayPauseDetected = false
+local isMovingRandomly = false
 
 -- Vị trí tường
 local WALL_POSITION = Vector3.new(10000, -500, 10000)
 
--- ===== CHỐNG GAMEPLAY PAUSED =====
-local function AntiGameplayPaused()
-    pcall(function()
-        local player = game.Players.LocalPlayer
-        if player then
-            player.Idled:Connect(function()
-                local VirtualUser = game:GetService("VirtualUser")
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton2(Vector2.new(0, 0))
-            end)
-            
-            task.spawn(function()
-                while true do
-                    task.wait(30)
-                    if isFarming or isFarmingLv then
-                        local VirtualUser = game:GetService("VirtualUser")
-                        VirtualUser:CaptureController()
-                        VirtualUser:ClickButton2(Vector2.new(0, 0))
-                    end
-                end
-            end)
-        end
-    end)
-end
-
-AntiGameplayPaused()
+-- ===== DANH SÁCH 20 VẬT PHẨM SỰ KIỆN =====
+local EventItems = {
+    "Bubble",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none",
+    "none"
+}
 
 -- ===== HÀM THÔNG BÁO =====
 local function Notify(title, content, duration)
@@ -179,6 +186,429 @@ local function Toast(title, subtitle, duration)
     end)
 end
 
+-- ===== TỰ ĐỘNG DI CHUYỂN NHẸ =====
+local function RandomMovement()
+    if isMovingRandomly then return end
+    isMovingRandomly = true
+    
+    pcall(function()
+        local player = game.Players.LocalPlayer
+        if not player or not player.Character then
+            isMovingRandomly = false
+            return
+        end
+        
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        
+        if not hrp or not humanoid then
+            isMovingRandomly = false
+            return
+        end
+        
+        -- Kiểm tra nếu đang ở trên tường
+        local model = isFarming and wallModel or wallModelLv
+        if model then
+            local wallPos = model:GetPivot().Position
+            local dist = (hrp.Position - wallPos).Magnitude
+            if dist > 50 then
+                isMovingRandomly = false
+                return
+            end
+        end
+        
+        -- Lưu vị trí hiện tại
+        local currentPos = hrp.Position
+        
+        -- Di chuyển ngẫu nhiên trong bán kính 2 units
+        local angle = math.random() * 2 * math.pi
+        local radius = math.random(10, 20) / 10 -- 1.0 đến 2.0 units
+        local offset = Vector3.new(
+            math.cos(angle) * radius,
+            0,
+            math.sin(angle) * radius
+        )
+        
+        local targetPos = currentPos + offset
+        
+        -- Di chuyển từ từ đến vị trí mới
+        local steps = 10
+        for i = 1, steps do
+            local t = i / steps
+            local newPos = currentPos:Lerp(targetPos, t)
+            hrp.CFrame = CFrame.new(newPos)
+            task.wait(0.02)
+        end
+        
+        -- Đứng yên 1 chút
+        task.wait(math.random(10, 30) / 10) -- 1-3 giây
+        
+        -- Quay lại vị trí cũ
+        for i = 1, steps do
+            local t = i / steps
+            local newPos = targetPos:Lerp(currentPos, t)
+            hrp.CFrame = CFrame.new(newPos)
+            task.wait(0.02)
+        end
+        
+        isMovingRandomly = false
+    end)
+end
+
+-- ===== ANTI AFK - KHÔNG LỖI 20 PHÚT =====
+local function StartAntiAFK()
+    if antiAFKActive then return end
+    antiAFKActive = true
+    afkTimer = 0
+    
+    Notify("🛡️ Anti AFK", "Đã kích hoạt chống AFK!", 3)
+    Toast("🛡️ Anti AFK", "Đang hoạt động", 2)
+    
+    task.spawn(function()
+        while antiAFKActive and (isFarming or isFarmingLv) do
+            task.wait(20) -- Kiểm tra mỗi 20 giây
+            
+            if not (isFarming or isFarmingLv) then
+                antiAFKActive = false
+                break
+            end
+            
+            afkTimer = afkTimer + 0.333
+            
+            -- Mỗi 2 phút thực hiện chống AFK
+            if afkTimer >= 2 then
+                afkTimer = 0
+                
+                pcall(function()
+                    local player = game.Players.LocalPlayer
+                    if player then
+                        -- Cách 1: VirtualUser Click
+                        local VirtualUser = game:GetService("VirtualUser")
+                        VirtualUser:CaptureController()
+                        VirtualUser:ClickButton2(Vector2.new(0, 0))
+                        
+                        -- Cách 2: Gửi tín hiệu phím giả
+                        local UserInputService = game:GetService("UserInputService")
+                        if UserInputService then
+                            local keys = {Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D}
+                            for _, key in ipairs(keys) do
+                                UserInputService:SetKeyDown(key)
+                                task.wait(0.03)
+                                UserInputService:SetKeyUp(key)
+                                task.wait(0.03)
+                            end
+                        end
+                        
+                        -- Cách 3: Tự động di chuyển nhẹ
+                        if math.random(1, 3) == 1 then
+                            RandomMovement()
+                        end
+                        
+                        -- Cách 4: Gửi tín hiệu chuột giả
+                        local mouse = player:GetMouse()
+                        if mouse then
+                            local currentPos = Vector2.new(mouse.X, mouse.Y)
+                            local offset = Vector2.new(math.random(-10, 10), math.random(-10, 10))
+                            mouse.X = currentPos.X + offset.X
+                            mouse.Y = currentPos.Y + offset.Y
+                            task.wait(0.05)
+                            mouse.X = currentPos.X
+                            mouse.Y = currentPos.Y
+                        end
+                        
+                        -- Cách 5: Bắt sự kiện Idled
+                        if player.Idled then
+                            player.Idled:Connect(function()
+                                VirtualUser:ClickButton2(Vector2.new(0, 0))
+                            end)
+                        end
+                        
+                        Toast("🛡️ Anti AFK", "Đã gửi tín hiệu", 1)
+                    end
+                end)
+            end
+        end
+    end)
+end
+
+local function StopAntiAFK()
+    antiAFKActive = false
+    afkTimer = 0
+    isMovingRandomly = false
+    Notify("🛡️ Anti AFK", "Đã tắt!", 2)
+    Toast("🛡️ Anti AFK", "Đã tắt", 2)
+end
+
+-- ===== ANTI GAMEPLAY PAUSE - KHÔNG BỊ TELEPORT 1 CHỖ =====
+local function StartAntiGameplayPause()
+    if antiGameplayPauseActive then return end
+    antiGameplayPauseActive = true
+    gameplayPauseDetected = false
+    
+    Notify("🛡️ Anti Gameplay Pause", "Đã kích hoạt!", 3)
+    Toast("🛡️ Anti Pause", "Đang hoạt động", 2)
+    
+    -- Luồng 1: Phát hiện và chống Gameplay Pause
+    task.spawn(function()
+        while antiGameplayPauseActive and (isFarming or isFarmingLv) do
+            task.wait(1)
+            
+            if not (isFarming or isFarmingLv) then
+                antiGameplayPauseActive = false
+                break
+            end
+            
+            pcall(function()
+                local player = game.Players.LocalPlayer
+                if player then
+                    -- Kiểm tra Gameplay Pause GUI
+                    local gui = player.PlayerGui:FindFirstChild("GameplayPause")
+                    if gui and gui.Enabled then
+                        gameplayPauseDetected = true
+                        
+                        -- Chống Gameplay Pause bằng nhiều cách
+                        local VirtualUser = game:GetService("VirtualUser")
+                        VirtualUser:CaptureController()
+                        VirtualUser:ClickButton2(Vector2.new(0, 0))
+                        task.wait(0.1)
+                        VirtualUser:ClickButton2(Vector2.new(0, 0))
+                        
+                        -- Tắt GUI nếu vẫn còn
+                        if gui and gui.Enabled then
+                            gui.Enabled = false
+                        end
+                        
+                        -- Gửi tín hiệu phím giả
+                        local UserInputService = game:GetService("UserInputService")
+                        if UserInputService then
+                            UserInputService:SetKeyDown(Enum.KeyCode.W)
+                            task.wait(0.05)
+                            UserInputService:SetKeyUp(Enum.KeyCode.W)
+                            UserInputService:SetKeyDown(Enum.KeyCode.Space)
+                            task.wait(0.05)
+                            UserInputService:SetKeyUp(Enum.KeyCode.Space)
+                        end
+                        
+                        -- Di chuyển nhẹ để thoát pause
+                        RandomMovement()
+                        
+                        Toast("🛡️ Anti Pause", "Đã chống!", 1)
+                        gameplayPauseDetected = false
+                    end
+                    
+                    -- Kiểm tra các GUI khác
+                    for _, guiItem in ipairs(player.PlayerGui:GetChildren()) do
+                        if guiItem.Name == "Pause" or guiItem.Name == "GameplayPaused" or guiItem.Name == "AFK" then
+                            if guiItem.Enabled then
+                                guiItem.Enabled = false
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+    
+    -- Luồng 2: Gửi tín hiệu liên tục và di chuyển nhẹ
+    task.spawn(function()
+        while antiGameplayPauseActive and (isFarming or isFarmingLv) do
+            task.wait(3) -- Gửi tín hiệu mỗi 3 giây
+            
+            if not (isFarming or isFarmingLv) then
+                break
+            end
+            
+            pcall(function()
+                local player = game.Players.LocalPlayer
+                if player and player.Character then
+                    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                    local humanoid = player.Character:FindFirstChild("Humanoid")
+                    
+                    if hrp and humanoid then
+                        -- Lưu vị trí hiện tại
+                        local currentPos = hrp.Position
+                        
+                        -- Gửi tín hiệu VirtualUser
+                        local VirtualUser = game:GetService("VirtualUser")
+                        VirtualUser:CaptureController()
+                        VirtualUser:ClickButton2(Vector2.new(0, 0))
+                        
+                        -- Mô phỏng di chuyển nhẹ (không teleport)
+                        if math.random(1, 2) == 1 then
+                            local offset = Vector3.new(
+                                math.random(-15, 15) / 10,
+                                0,
+                                math.random(-15, 15) / 10
+                            )
+                            
+                            if offset.Magnitude > 0.1 then
+                                -- Di chuyển từ từ
+                                local targetPos = currentPos + offset
+                                local steps = 5
+                                for i = 1, steps do
+                                    local t = i / steps
+                                    local newPos = currentPos:Lerp(targetPos, t)
+                                    hrp.CFrame = CFrame.new(newPos)
+                                    task.wait(0.02)
+                                end
+                                
+                                -- Quay lại vị trí cũ
+                                for i = 1, steps do
+                                    local t = i / steps
+                                    local newPos = targetPos:Lerp(currentPos, t)
+                                    hrp.CFrame = CFrame.new(newPos)
+                                    task.wait(0.02)
+                                end
+                            end
+                        end
+                        
+                        -- Mô phỏng nhấn phím di chuyển
+                        local UserInputService = game:GetService("UserInputService")
+                        if UserInputService and math.random(1, 3) == 1 then
+                            local randomKey = math.random(1, 4)
+                            local key = {
+                                Enum.KeyCode.W,
+                                Enum.KeyCode.A,
+                                Enum.KeyCode.S,
+                                Enum.KeyCode.D
+                            }[randomKey]
+                            
+                            UserInputService:SetKeyDown(key)
+                            task.wait(0.05)
+                            UserInputService:SetKeyUp(key)
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+local function StopAntiGameplayPause()
+    antiGameplayPauseActive = false
+    gameplayPauseDetected = false
+    isMovingRandomly = false
+    Notify("🛡️ Anti Gameplay Pause", "Đã tắt!", 2)
+    Toast("🛡️ Anti Pause", "Đã tắt", 2)
+end
+
+-- ===== KIỂM TRA DANH SÁCH VẬT PHẨM =====
+local function CheckEventItemsList()
+    local validItems = {}
+    local noneCount = 0
+    
+    for _, item in ipairs(EventItems) do
+        if item == "none" then
+            noneCount = noneCount + 1
+        else
+            table.insert(validItems, item)
+        end
+    end
+    
+    if noneCount == #EventItems then
+        return false, "⚠️ Không có sự kiện", "❗ Không còn sự kiện để farm", {}
+    end
+    
+    if #validItems >= 1 then
+        currentEventItem = validItems[1]
+        return true, "✅ Có sự kiện", "🔄 Đang tìm " .. currentEventItem .. "...", validItems
+    end
+    
+    return true, "Đang tìm vật phẩm sự kiện...", validItems
+end
+
+-- ===== GHI NHỚ HÌNH DẠNG VẬT PHẨM =====
+local function MemorizeItemShape(item)
+    if not item then return end
+    
+    local shapeData = {
+        Name = item.Name,
+        Size = item.Size,
+        Color = item.BrickColor,
+        Material = item.Material,
+        Position = item.Position
+    }
+    
+    detectedItemShape = shapeData
+    detectedItemName = item.Name
+    
+    Notify("🧠 Ghi nhớ", "Đã ghi nhớ hình dạng: " .. item.Name, 3)
+    Toast("🧠 Ghi nhớ", item.Name, 2)
+    
+    for i, v in ipairs(EventItems) do
+        if v ~= "none" then
+            EventItems[i] = item.Name
+            break
+        end
+    end
+end
+
+-- ===== TỰ ĐỘNG PHÁT HIỆN VẬT PHẨM =====
+local function SmartDetectEvent()
+    if not isAutoDetect or not isFarming then return nil end
+    if isDetecting then return nil end
+    
+    isDetecting = true
+    local foundItem = nil
+    
+    local allParts = game.Workspace:GetDescendants()
+    local player = game.Players.LocalPlayer
+    
+    for _, obj in ipairs(allParts) do
+        if obj:IsA("BasePart") and obj.Parent then
+            local isCharacter = false
+            local currentParent = obj.Parent
+            while currentParent do
+                if currentParent:IsA("Model") and currentParent:FindFirstChild("Humanoid") then
+                    isCharacter = true
+                    break
+                end
+                currentParent = currentParent.Parent
+            end
+            
+            if not isCharacter then
+                local isEventItem = false
+                for _, eventName in ipairs(EventItems) do
+                    if eventName ~= "none" and string.find(string.lower(obj.Name), string.lower(eventName)) then
+                        isEventItem = true
+                        break
+                    end
+                end
+                
+                if isEventItem then
+                    foundItem = obj
+                    break
+                end
+            end
+        end
+    end
+    
+    isDetecting = false
+    
+    if foundItem then
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            TeleportWithEmote(foundItem.Position, foundItem.CFrame, false, false)
+            task.wait(2)
+            
+            if not foundItem.Parent then
+                MemorizeItemShape(foundItem)
+                Notify("🔍 Phát hiện", "Vật phẩm mới: " .. foundItem.Name, 3)
+                Toast("🔍 Phát hiện", foundItem.Name, 2)
+                
+                if wallModel then
+                    local wallPos = wallModel:GetPivot().Position
+                    TeleportWithEmote(Vector3.new(wallPos.X, wallPos.Y + 1, wallPos.Z), nil, true, false)
+                end
+                
+                return foundItem.Name
+            end
+        end
+    end
+    
+    return nil
+end
+
 -- ===== KIỂM TRA VẬT PHẨM =====
 local function isPlayerAsset(instance)
     local Players = game:GetService("Players")
@@ -192,25 +622,57 @@ end
 
 local function getAllItems()
     local items = {}
+    local valid, _, _, validItems = CheckEventItemsList()
+    
+    if not valid then
+        return items
+    end
+    
+    local foundAny = false
+    
     for _, v in pairs(workspace:GetDescendants()) do
         if (v:IsA("BasePart") or v:IsA("Model")) then
             local nameLower = string.lower(v.Name)
-            if string.find(nameLower, "bubble") or string.find(nameLower, "coconut") then
-                local isVisualEffect = v:FindFirstChildWhichIsA("ParticleEmitter") 
-                                    or v:FindFirstChildWhichIsA("Trail") 
-                                    or v:FindFirstChildWhichIsA("Beam")
-                                    or v.ClassName == "Accessory"
-                local hasAnimation = v:FindFirstChildWhichIsA("Animation") or v:FindFirstChildWhichIsA("Animator")
+            
+            for _, eventName in ipairs(validItems) do
+                if string.find(nameLower, string.lower(eventName)) or string.find(eventName, nameLower) then
+                    local isVisualEffect = v:FindFirstChildWhichIsA("ParticleEmitter") 
+                                        or v:FindFirstChildWhichIsA("Trail") 
+                                        or v:FindFirstChildWhichIsA("Beam")
+                                        or v.ClassName == "Accessory"
+                    local hasAnimation = v:FindFirstChildWhichIsA("Animation") or v:FindFirstChildWhichIsA("Animator")
 
-                if not isVisualEffect and not hasAnimation and not isPlayerAsset(v) then
-                    local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart")
-                    if part then
-                        table.insert(items, part)
+                    if not isVisualEffect and not hasAnimation and not isPlayerAsset(v) then
+                        local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart")
+                        if part then
+                            table.insert(items, {
+                                Object = part,
+                                Name = v.Name,
+                                Type = eventName
+                            })
+                            foundAny = true
+                        end
                     end
+                    break
                 end
             end
         end
     end
+    
+    if not foundAny and isAutoDetect and isFarming then
+        local detected = SmartDetectEvent()
+        if detected then
+            for i, item in ipairs(EventItems) do
+                if item ~= "none" then
+                    EventItems[i] = detected
+                    currentEventItem = detected
+                    break
+                end
+            end
+            return getAllItems()
+        end
+    end
+    
     return items
 end
 
@@ -231,21 +693,15 @@ end
 
 local function getClosestSafeItem(hrp, items)
     local closest, minDst = nil, math.huge
-    for _, part in ipairs(items) do
+    for _, item in ipairs(items) do
+        local part = item.Object
         local dst = (hrp.Position - part.Position).Magnitude
         if dst < minDst and not isNextbotNear(part.Position) then
-            closest = part
+            closest = item
             minDst = dst
         end
     end
     return closest
-end
-
-local function teleportTo(hrp, pos, duration)
-    local TweenService = game:GetService("TweenService")
-    local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(pos)})
-    tween:Play()
-    tween.Completed:Wait()
 end
 
 -- ===== TẠO TƯỜNG =====
@@ -430,8 +886,6 @@ end
 local function FarmEventLoop()
     if not isFarming then return end
     
-    AntiGameplayPaused()
-    
     local player = game.Players.LocalPlayer
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -448,8 +902,8 @@ local function FarmEventLoop()
     if itemCount == 0 then
         noItemTimer = noItemTimer + 0.5
         if noItemTimer >= 20 then
-            Notify("Farm Event", "⚠️ Không có Bubble, đang chờ...", 3)
-            Toast("⏳ Chờ", "Không có Bubble", 2)
+            Notify("Farm Event", "⚠️ Không có vật phẩm, đang chờ...", 3)
+            Toast("⏳ Chờ", "Không có vật phẩm", 2)
             noItemTimer = 0
         end
         task.wait(1)
@@ -462,20 +916,23 @@ local function FarmEventLoop()
     local target = getClosestSafeItem(hrp, items)
     
     if target then
-        Toast("🔄 Tìm thấy", "Bubble gần nhất", 2)
+        local itemName = target.Name
+        Toast("🔄 Tìm thấy", itemName, 2)
         
-        local tween = game:GetService("TweenService"):Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {CFrame = CFrame.new(target.Position)})
+        local tween = game:GetService("TweenService"):Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {CFrame = CFrame.new(target.Object.Position)})
         tween:Play()
         tween.Completed:Wait()
         
         pcall(function()
             local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local collectId = target.Parent:GetAttribute("Id") or target:GetAttribute("Id") or "a19ac91bff904b7385e826fd6a23dc01"
+            local collectId = target.Object.Parent:GetAttribute("Id") or target.Object:GetAttribute("Id") or "a19ac91bff904b7385e826fd6a23dc01"
             ReplicatedStorage.Events.Collectibles.Invoke:InvokeServer(player, collectId, "Collect")
             
             collectedItems = collectedItems + 1
-            Notify("🔔 Tổng nhận event items", string.format("🔎 Event items: %d", collectedItems), 2)
-            Toast("✅ Nhận", string.format("Bubble #%d", collectedItems), 2)
+            
+            Notify("🔔 Tổng nhận event items", 
+                string.format("🔎 Event items: %d", collectedItems), 2)
+            Toast("✅ Nhận", string.format("%s #%d", itemName, collectedItems), 2)
         end)
         
         task.wait(0.5)
@@ -506,6 +963,10 @@ local function StartFarmEvent()
     Notify("Farm Event", "🚀 Đang khởi động Farm Event...", 2)
     Toast("🚀 Khởi động", "Farm Event", 2)
     
+    -- Kích hoạt Anti AFK & Gameplay Pause
+    StartAntiAFK()
+    StartAntiGameplayPause()
+    
     CreateWall()
     task.wait(1)
     TeleportToWall()
@@ -518,6 +979,10 @@ local function StopFarmEvent()
     isFarming = false
     noItemTimer = 0
     
+    -- Tắt Anti AFK & Gameplay Pause
+    StopAntiAFK()
+    StopAntiGameplayPause()
+    
     pcall(function()
         if wallModel then
             wallModel:Destroy()
@@ -525,15 +990,14 @@ local function StopFarmEvent()
         end
     end)
     
-    Notify("🔔 Tổng nhận event items", string.format("🔎 Event items: %d", collectedItems), 3)
-    Toast("🛑 Dừng", string.format("Đã nhận %d Bubble", collectedItems), 3)
+    Notify("🔔 Tổng nhận event items", 
+        string.format("🔎 Event items: %d", collectedItems), 3)
+    Toast("🛑 Dừng", string.format("Đã nhận %d vật phẩm", collectedItems), 3)
 end
 
--- ===== FARM LV - CHỈ ĐỨNG TƯỜNG =====
+-- ===== FARM LV =====
 local function FarmLvLoop()
     if not isFarmingLv then return end
-    
-    AntiGameplayPaused()
     
     if not wallModelLv then
         CreateWallLv()
@@ -546,7 +1010,6 @@ local function FarmLvLoop()
     while isFarmingLv do
         task.wait(3)
         CheckFallOffWallLv()
-        AntiGameplayPaused()
         
         pcall(function()
             local notifications = game:GetService("StarterGui"):GetChildren()
@@ -554,7 +1017,6 @@ local function FarmLvLoop()
                 if notif:IsA("ScreenGui") and notif:FindFirstChild("Timer") then
                     local timer = notif.Timer
                     if timer and timer.Text and string.find(timer.Text, "Hết thời gian") then
-                        -- THÔNG BÁO PHẦN THƯỞNG TRƯỚC KHI NHẬN
                         local rewards = game:GetService("ReplicatedStorage"):FindFirstChild("Rewards")
                         if rewards then
                             local playerReward = rewards:FindFirstChild(game.Players.LocalPlayer.Name)
@@ -567,13 +1029,10 @@ local function FarmLvLoop()
                                 local expText = expReward and string.format("⚡ Exp %d", expReward.Value) or "⚡ Exp 0"
                                 local eventText = eventReward and string.format("🎁 Event items %d", eventReward.Value) or "🎁 Event items 0"
                                 
-                                -- HIỂN THỊ THÔNG BÁO TRƯỚC KHI NHẬN
                                 Notify("🔔 Phần thưởng nhận được:", string.format("%s | %s | %s", coinText, expText, eventText), 5)
                                 Toast("🎁 Phần thưởng", "Đang nhận...", 3)
                                 
-                                -- SAU ĐÓ MỚI NHẬN PHẦN THƯỞNG
                                 task.wait(1)
-                                -- Code nhận phần thưởng ở đây (nếu có)
                             else
                                 Notify("🔔 Phần thưởng nhận được:", "❌ Không có phần thưởng", 3)
                             end
@@ -594,6 +1053,11 @@ local function StartFarmLv()
         StopFarmEvent()
     end
     isFarmingLv = true
+    
+    -- Kích hoạt Anti AFK & Gameplay Pause
+    StartAntiAFK()
+    StartAntiGameplayPause()
+    
     CreateWallLv()
     task.wait(1)
     TeleportToWallLv()
@@ -602,6 +1066,11 @@ end
 
 local function StopFarmLv()
     isFarmingLv = false
+    
+    -- Tắt Anti AFK & Gameplay Pause
+    StopAntiAFK()
+    StopAntiGameplayPause()
+    
     pcall(function()
         if wallModelLv then
             wallModelLv:Destroy()
@@ -637,15 +1106,41 @@ farmLvToggle = farmTab:CreateToggle({
     end,
 })
 
+autoDetectToggle = farmTab:CreateToggle({
+    name = "Auto-Detect Event",
+    flag = "AutoDetectToggle",
+    callback = function(value)
+        if value then
+            if not isFarming then
+                Notify("⚠️ Cảnh báo", "Phải bật Farm Event trước!", 3)
+                Toast("⚠️ Lỗi", "Cần Farm Event", 2)
+                autoDetectToggle:SetValue(false)
+                return
+            end
+            if isFarmingLv then
+                Notify("⚠️ Cảnh báo", "Không thể dùng với Farm Lv!", 3)
+                Toast("⚠️ Lỗi", "Đang chạy Farm Lv", 2)
+                autoDetectToggle:SetValue(false)
+                return
+            end
+            isAutoDetect = true
+            Notify("🔍 Auto-Detect", "Đã bật phát hiện thông minh!", 3)
+            Toast("🔍 Auto-Detect", "Đang quét...", 2)
+        else
+            isAutoDetect = false
+            Notify("🔍 Auto-Detect", "Đã tắt phát hiện thông minh!", 3)
+            Toast("🔍 Auto-Detect", "Đã tắt", 2)
+        end
+    end,
+})
+
 -- ===== KIỂM TRA XUỐNG TƯỜNG =====
 game:GetService("RunService").Heartbeat:Connect(function()
     if isFarming then
         CheckFallOffWall()
-        AntiGameplayPaused()
     end
     if isFarmingLv then
         CheckFallOffWallLv()
-        AntiGameplayPaused()
     end
 end)
 
@@ -665,5 +1160,6 @@ game.Players.LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
-print("Summer 2026 Farm đã được tải thành công!")
+print("Evade Event Farm đã được tải thành công!")
 print("Sử dụng Rayfield Gen2 - Nhấn RightControl để mở UI")
+print("🛡️ Anti AFK (tự động di chuyển nhẹ) & Anti Gameplay Pause đã sẵn sàng!")
