@@ -110,7 +110,7 @@ local isWaitingForVote = false
 local voteCheckTimer = 0
 
 -- ===== VỊ TRÍ TƯỜNG (ĐÃ CHỈNH) =====
-local WALL_POSITION = Vector3.new(5000, -500, 5000)
+local WALL_POSITION = Vector3.new(500, 500, 500)
 
 -- ===== DANH SÁCH 20 VẬT PHẨM SỰ KIỆN =====
 local EventItems = {
