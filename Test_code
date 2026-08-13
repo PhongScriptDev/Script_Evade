@@ -18,7 +18,8 @@ local sweatParts = {}
 local smokeParts = {}
 local isSleeping = false
 local afkTimer = 0
-local isMale = true
+local wakeUpTimer = 0
+local isWakeUpEffect = false
 
 -- Biến quản lý tốc độ
 local speedBoosted = false
@@ -69,124 +70,36 @@ local function applySpeedBoost(char)
     end)
 end
 
--- Hàm tạo hiệu ứng dấu chấm "."
+-- Hàm tạo dấu chấm (màu random)
 local function createDotEffect(char)
     local dot = Instance.new("Part")
-    dot.Size = Vector3.new(0.2, 0.2, 0.2)
+    dot.Size = Vector3.new(0.3, 0.3, 0.3)
     dot.Shape = Enum.PartType.Ball
     dot.Material = Enum.Material.Neon
+    -- Màu random
+    dot.Color = Color3.fromHSV(math.random(), 1, 1)
     dot.Anchored = true
     dot.CanCollide = false
-    dot.Transparency = 0
+    dot.Transparency = 0.2
     dot.Parent = workspace
     
+    -- Tạo beam để phát sáng
     local attachment0 = Instance.new("Attachment", dot)
     local attachment1 = Instance.new("Attachment", dot)
-    attachment1.Position = Vector3.new(0, 1, 0)
+    attachment1.Position = Vector3.new(0, 0.5, 0)
     
     local beam = Instance.new("Beam", dot)
     beam.Attachment0 = attachment0
     beam.Attachment1 = attachment1
-    beam.Width0 = 0.1
-    beam.Width1 = 0.1
+    beam.Width0 = 0.2
+    beam.Width1 = 0.2
     beam.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-        ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 255, 0)),
-        ColorSequenceKeypoint.new(0.4, Color3.fromRGB(0, 255, 0)),
-        ColorSequenceKeypoint.new(0.6, Color3.fromRGB(0, 255, 255)),
-        ColorSequenceKeypoint.new(0.8, Color3.fromRGB(0, 0, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 255))
+        ColorSequenceKeypoint.new(0, dot.Color),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, dot.Color)
     })
     
     return dot
-end
-
--- HÀM TẠO HIỆU ỨNG MỒ HÔI (suy nghĩ khi di chuyển)
-local function createSweatEffect(char)
-    local head = char:FindFirstChild("Head")
-    if not head then return {} end
-    
-    local sweats = {}
-    for i = 1, 8 do
-        local sweat = Instance.new("Part")
-        sweat.Size = Vector3.new(0.08, 0.15, 0.08)
-        sweat.Shape = Enum.PartType.Ball
-        sweat.Material = Enum.Material.Neon
-        sweat.Color = Color3.fromRGB(100, 200, 255)
-        sweat.Anchored = true
-        sweat.CanCollide = false
-        sweat.Transparency = 0.4
-        sweat.Parent = workspace
-        
-        -- Thêm Trail để tạo hiệu ứng chảy
-        local trail = Instance.new("Trail", sweat)
-        trail.Lifetime = 0.5
-        trail.MinLength = 0.1
-        trail.MaxLength = 0.5
-        trail.WidthScale = NumberSequence.new(0.5, 0)
-        trail.Color = ColorSequence.new(Color3.fromRGB(100, 200, 255))
-        trail.Transparency = NumberSequence.new(0.3, 1)
-        
-        local angle = math.random() * math.pi * 2
-        local radius = 0.5 + math.random() * 0.3
-        sweat.Position = head.Position + Vector3.new(
-            math.cos(angle) * radius,
-            -0.3 + math.random() * 0.2,
-            math.sin(angle) * radius
-        )
-        
-        table.insert(sweats, sweat)
-    end
-    return sweats
-end
-
--- HÀM TẠO HIỆU ỨNG KHÓI (suy nghĩ khi nhảy)
-local function createSmokeEffect(char)
-    local rootPart = char:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return {} end
-    
-    local smokes = {}
-    for i = 1, 6 do
-        local smoke = Instance.new("Part")
-        smoke.Size = Vector3.new(0.5, 0.5, 0.5)
-        smoke.Shape = Enum.PartType.Ball
-        smoke.Material = Enum.Material.Neon
-        smoke.Color = Color3.fromRGB(200, 200, 200)
-        smoke.Anchored = true
-        smoke.CanCollide = false
-        smoke.Transparency = 0.6
-        smoke.Parent = workspace
-        
-        -- ParticleEmitter cho khói chân thật
-        local particles = Instance.new("ParticleEmitter", smoke)
-        particles.Texture = "rbxasset://textures/particles/fog_main.dds"
-        particles.Rate = 20
-        particles.Lifetime = NumberRange.new(1, 2)
-        particles.SpreadAngle = Vector2.new(360, 360)
-        particles.Speed = NumberRange.new(0.5, 1.5)
-        particles.Drag = 2
-        particles.Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.5),
-            NumberSequenceKeypoint.new(0.5, 0.7),
-            NumberSequenceKeypoint.new(1, 1)
-        })
-        particles.Size = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.5),
-            NumberSequenceKeypoint.new(1, 2)
-        })
-        particles.Color = ColorSequence.new(Color3.fromRGB(200, 200, 200))
-        
-        local angle = math.random() * math.pi * 2
-        local radius = 1 + math.random() * 0.5
-        smoke.Position = rootPart.Position + Vector3.new(
-            math.cos(angle) * radius,
-            0.2 + math.random() * 0.3,
-            math.sin(angle) * radius
-        )
-        
-        table.insert(smokes, smoke)
-    end
-    return smokes
 end
 
 -- Hàm tạo Zzz
@@ -203,7 +116,7 @@ local function createZzzEffect(char)
         zzz.Color = Color3.fromRGB(100, 200, 255)
         zzz.Anchored = true
         zzz.CanCollide = false
-        zzz.Transparency = 0
+        zzz.Transparency = 0.2
         zzz.Parent = workspace
         
         local textLabel = Instance.new("BillboardGui", zzz)
@@ -218,80 +131,129 @@ local function createZzzEffect(char)
         text.TextScaled = true
         text.Font = Enum.Font.GothamBold
         
-        zzz.Position = head.Position + Vector3.new(math.random(-2, 2), 2 + i * 0.5, math.random(-2, 2))
+        -- Lưu offset để di chuyển theo đầu
+        local offset = Vector3.new(math.random(-2, 2), 2 + i * 0.5, math.random(-2, 2))
+        zzz.Position = head.Position + offset
+        zzz.Name = "Zzz_" .. i
+        
+        -- Lưu thông tin di chuyển
+        zzz.Offset = offset
+        zzz.Speed = 0.3 + math.random() * 0.3
+        zzz.Angle = math.random() * math.pi * 2
+        
         table.insert(zzzParts, zzz)
     end
     return zzzParts
 end
 
--- Hàm xóa hiệu ứng
-local function clearEffects(effects)
-    for _, v in pairs(effects) do
-        pcall(function() v:Destroy() end)
-    end
-    return {}
-end
-
--- Hàm update hiệu ứng
-local function updateEffects(char)
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    if not isEnabled then return end
+-- Hàm tạo mồ hôi
+local function createSweatEffect(char)
+    local head = char:FindFirstChild("Head")
+    if not head then return {} end
     
-    local rootPart = char.HumanoidRootPart
-    local rootPos = rootPart.Position
-    
-    -- Xóa dot cũ
-    dotParts = clearEffects(dotParts)
-    
-    -- Tạo dot mới
-    for i = 1, 20 do
-        local dot = createDotEffect(char)
-        local angle = (i / 20) * math.pi * 2
-        local radius = 1.5 + math.random() * 2
-        dot.Position = rootPos + Vector3.new(
+    local sweats = {}
+    for i = 1, 4 do
+        local sweat = Instance.new("Part")
+        sweat.Size = Vector3.new(0.1, 0.15, 0.1)
+        sweat.Shape = Enum.PartType.Ball
+        sweat.Material = Enum.Material.Neon
+        sweat.Color = Color3.fromRGB(150, 200, 255)
+        sweat.Anchored = true
+        sweat.CanCollide = false
+        sweat.Transparency = 0.3
+        sweat.Parent = workspace
+        
+        -- Trail chảy xuống
+        local trail = Instance.new("Trail", sweat)
+        trail.Lifetime = 0.8
+        trail.MinLength = 0.05
+        trail.MaxLength = 0.3
+        trail.WidthScale = NumberSequence.new(0.3, 0)
+        trail.Color = ColorSequence.new(Color3.fromRGB(150, 200, 255))
+        trail.Transparency = NumberSequence.new(0.3, 1)
+        
+        -- Vị trí random trên mặt
+        local angle = math.random() * math.pi * 2
+        local radius = 0.4 + math.random() * 0.3
+        local offset = Vector3.new(
             math.cos(angle) * radius,
-            -1 + math.random() * 0.5,
+            -0.3 + math.random() * 0.2,
             math.sin(angle) * radius
         )
-        table.insert(dotParts, dot)
+        
+        sweat.Position = head.Position + offset
+        sweat.Name = "Sweat_" .. i
+        
+        -- Lưu thông tin
+        sweat.Offset = offset
+        sweat.DropSpeed = 0.02 + math.random() * 0.03
+        
+        table.insert(sweats, sweat)
     end
+    return sweats
 end
 
--- Hàm xử lý AFK
-local function handleAfk(char)
-    if not char or not char:FindFirstChild("Head") then return end
-    if isSleeping then return end
+-- Hàm tạo khói
+local function createSmokeEffect(char)
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return {} end
     
-    isSleeping = true
-    zzzParts = createZzzEffect(char)
-    
-    spawn(function()
-        while isSleeping and char and char:FindFirstChild("Head") do
-            local head = char.Head
-            for i, zzz in pairs(zzzParts) do
-                if zzz and zzz.Parent then
-                    zzz.Position = head.Position + Vector3.new(
-                        math.sin(tick() * 0.5 + i) * 1.5,
-                        2 + i * 0.5 + math.sin(tick() * 0.3 + i) * 0.3,
-                        math.cos(tick() * 0.5 + i) * 1.5
-                    )
-                    zzz.Transparency = 0.3 + math.sin(tick() * 0.5 + i) * 0.2
-                end
-            end
-            wait(0.1)
-        end
-    end)
+    local smokes = {}
+    for i = 1, 5 do
+        local smoke = Instance.new("Part")
+        smoke.Size = Vector3.new(0.5, 0.5, 0.5)
+        smoke.Shape = Enum.PartType.Ball
+        smoke.Material = Enum.Material.Neon
+        smoke.Color = Color3.fromRGB(200, 200, 200)
+        smoke.Anchored = true
+        smoke.CanCollide = false
+        smoke.Transparency = 0.6
+        smoke.Parent = workspace
+        
+        -- ParticleEmitter cho khói
+        local particles = Instance.new("ParticleEmitter", smoke)
+        particles.Texture = "rbxasset://textures/particles/fog_main.dds"
+        particles.Rate = 15
+        particles.Lifetime = NumberRange.new(1, 2)
+        particles.SpreadAngle = Vector2.new(360, 360)
+        particles.Speed = NumberRange.new(0.3, 1)
+        particles.Drag = 3
+        particles.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.5),
+            NumberSequenceKeypoint.new(0.5, 0.7),
+            NumberSequenceKeypoint.new(1, 1)
+        })
+        particles.Size = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.3),
+            NumberSequenceKeypoint.new(1, 1.5)
+        })
+        particles.Color = ColorSequence.new(Color3.fromRGB(200, 200, 200))
+        
+        -- Vị trí dưới chân
+        local angle = math.random() * math.pi * 2
+        local radius = 0.5 + math.random() * 0.5
+        local offset = Vector3.new(
+            math.cos(angle) * radius,
+            0.2 + math.random() * 0.3,
+            math.sin(angle) * radius
+        )
+        
+        smoke.Position = rootPart.Position + offset
+        smoke.Name = "Smoke_" .. i
+        
+        smoke.Offset = offset
+        smoke.Life = 0
+        
+        table.insert(smokes, smoke)
+    end
+    return smokes
 end
 
--- Hàm thức dậy
-local function wakeUp(char)
-    if not isSleeping then return end
-    isSleeping = false
-    
+-- Hàm tạo !
+local function createExclaimEffect(char)
     local head = char:FindFirstChild("Head")
     if not head then return end
     
-    -- Tạo !
     local exclaim = Instance.new("Part")
     exclaim.Size = Vector3.new(0.5, 0.5, 0.5)
     exclaim.Shape = Enum.PartType.Ball
@@ -299,6 +261,7 @@ local function wakeUp(char)
     exclaim.Color = Color3.fromRGB(255, 255, 0)
     exclaim.Anchored = true
     exclaim.CanCollide = false
+    exclaim.Transparency = 0
     exclaim.Parent = workspace
     
     local textLabel = Instance.new("BillboardGui", exclaim)
@@ -314,18 +277,184 @@ local function wakeUp(char)
     text.Font = Enum.Font.GothamBold
     
     exclaim.Position = head.Position + Vector3.new(0, 2, 0)
+    exclaim.Name = "Exclaim"
     
-    spawn(function()
-        for i = 1, 20 do
-            exclaim.Transparency = i / 20
-            exclaim.Position = exclaim.Position + Vector3.new(0, 0.05, 0)
-            wait(0.05)
+    return exclaim
+end
+
+-- Hàm xóa effect an toàn
+local function safeDestroy(obj)
+    pcall(function() 
+        if obj and obj.Parent then
+            obj:Destroy() 
         end
-        exclaim:Destroy()
     end)
+end
+
+-- Hàm clear effects
+local function clearEffects(effects)
+    for _, v in pairs(effects) do
+        safeDestroy(v)
+    end
+    return {}
+end
+
+-- Hàm update dot (gọi mỗi frame)
+local function updateDots(char, rootPos)
+    for i, dot in pairs(dotParts) do
+        if dot and dot.Parent then
+            -- Di chuyển theo nhân vật với quỹ đạo tròn
+            local angle = (i / #dotParts) * math.pi * 2 + tick() * 0.8
+            local radius = 1.8 + math.sin(tick() * 0.5 + i) * 0.8
+            local heightOffset = math.sin(tick() * 0.7 + i * 0.3) * 0.5
+            
+            dot.Position = rootPos + Vector3.new(
+                math.cos(angle) * radius,
+                -0.5 + heightOffset,
+                math.sin(angle) * radius
+            )
+            
+            -- Đổi màu liên tục
+            local hue = (tick() * 0.15 + i / #dotParts) % 1
+            dot.Color = Color3.fromHSV(hue, 1, 1)
+            
+            -- Độ trong suốt thay đổi
+            dot.Transparency = 0.2 + math.sin(tick() * 0.5 + i) * 0.15
+        else
+            -- Nếu dot bị xóa thì remove khỏi table
+            table.remove(dotParts, i)
+        end
+    end
+end
+
+-- Hàm update Zzz
+local function updateZzz(char)
+    local head = char:FindFirstChild("Head")
+    if not head then return end
     
-    -- Xóa Zzz
-    zzzParts = clearEffects(zzzParts)
+    for i, zzz in pairs(zzzParts) do
+        if zzz and zzz.Parent then
+            -- Di chuyển theo đầu với quỹ đạo
+            local offset = zzz.Offset or Vector3.new(0, 2 + i * 0.5, 0)
+            local angle = (zzz.Angle or 0) + tick() * zzz.Speed
+            local radius = 0.5 + math.sin(tick() * 0.3 + i) * 0.3
+            
+            local finalOffset = Vector3.new(
+                math.cos(angle) * radius + offset.X,
+                offset.Y + math.sin(tick() * 0.2 + i) * 0.3,
+                math.sin(angle) * radius + offset.Z
+            )
+            
+            zzz.Position = head.Position + finalOffset
+            
+            -- Zzz biến mất từ từ và xuất hiện lại
+            local transparency = 0.2 + math.sin(tick() * 0.5 + i * 1.5) * 0.2
+            zzz.Transparency = math.max(0, math.min(1, transparency))
+        else
+            table.remove(zzzParts, i)
+        end
+    end
+end
+
+-- Hàm update mồ hôi
+local function updateSweat(char, rootPos)
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+    
+    for i, sweat in pairs(sweatParts) do
+        if sweat and sweat.Parent then
+            -- Chảy xuống dần
+            local dropSpeed = sweat.DropSpeed or 0.02
+            sweat.Position = sweat.Position + Vector3.new(0, -dropSpeed, 0)
+            sweat.Transparency = sweat.Transparency + 0.008
+            
+            -- Nếu chảy xuống chân hoặc quá mờ thì xóa
+            if sweat.Position.Y < rootPos.Y - 1.2 or sweat.Transparency > 0.9 then
+                safeDestroy(sweat)
+                table.remove(sweatParts, i)
+            end
+        else
+            table.remove(sweatParts, i)
+        end
+    end
+end
+
+-- Hàm update khói
+local function updateSmoke(char)
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    for i, smoke in pairs(smokeParts) do
+        if smoke and smoke.Parent then
+            -- Bay lên và lan tỏa
+            smoke.Position = smoke.Position + Vector3.new(
+                math.sin(tick() + i) * 0.02,
+                0.03,
+                math.cos(tick() + i) * 0.02
+            )
+            smoke.Size = smoke.Size + Vector3.new(0.02, 0.02, 0.02)
+            smoke.Transparency = math.min(smoke.Transparency + 0.005, 1)
+            
+            -- Xóa khi quá mờ
+            if smoke.Transparency > 0.95 or smoke.Size.X > 2 then
+                safeDestroy(smoke)
+                table.remove(smokeParts, i)
+            end
+        else
+            table.remove(smokeParts, i)
+        end
+    end
+end
+
+-- Hàm xử lý AFK
+local function handleAfk(char)
+    if not char or not char:FindFirstChild("Head") then return end
+    if isSleeping then return end
+    
+    isSleeping = true
+    zzzParts = createZzzEffect(char)
+end
+
+-- Hàm thức dậy
+local function wakeUp(char)
+    if not isSleeping then return end
+    if isWakeUpEffect then return end
+    
+    isSleeping = false
+    isWakeUpEffect = true
+    
+    -- Xóa Zzz từ từ
+    for _, zzz in pairs(zzzParts) do
+        spawn(function()
+            for i = 1, 15 do
+                if zzz and zzz.Parent then
+                    zzz.Transparency = zzz.Transparency + 0.07
+                    wait(0.05)
+                end
+            end
+            safeDestroy(zzz)
+        end)
+    end
+    wait(0.5)
+    zzzParts = {}
+    
+    -- Tạo hiệu ứng !
+    local exclaim = createExclaimEffect(char)
+    if exclaim then
+        spawn(function()
+            for i = 1, 25 do
+                if exclaim and exclaim.Parent then
+                    exclaim.Transparency = i / 25
+                    exclaim.Position = exclaim.Position + Vector3.new(0, 0.04, 0)
+                    wait(0.05)
+                end
+            end
+            safeDestroy(exclaim)
+        end)
+    end
+    
+    wait(0.5)
+    isWakeUpEffect = false
 end
 
 -- Toggle chính
@@ -339,13 +468,18 @@ local Toggle = MainTab:CreateToggle({
         if Value then
             speedBoosted = false
             speedIncreaseTime = 0
+            afkTimer = 0
             
             if char and char:FindFirstChild("Humanoid") then
                 char.Humanoid.WalkSpeed = baseSpeed
             end
             
-            if char then
-                updateEffects(char)
+            -- Tạo dot ban đầu
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                for i = 1, 25 do
+                    local dot = createDotEffect(char)
+                    table.insert(dotParts, dot)
+                end
             end
             
             -- Loop tăng tốc
@@ -361,10 +495,10 @@ local Toggle = MainTab:CreateToggle({
                 end
             end)
             
-            -- Loop chính (xử lý tất cả hiệu ứng)
+            -- Loop chính cập nhật hiệu ứng
             spawn(function()
-                local lastPos = Vector3.new()
-                local isJumping = false
+                local lastIsMoving = false
+                local lastIsInAir = false
                 
                 while isEnabled and char and char:FindFirstChild("HumanoidRootPart") do
                     local rootPart = char.HumanoidRootPart
@@ -374,9 +508,9 @@ local Toggle = MainTab:CreateToggle({
                     if humanoid then
                         local isMoving = humanoid.MoveDirection.Magnitude > 0.1
                         local velocity = humanoid.Velocity
-                        local isInAir = velocity.Y > 1 or velocity.Y < -1
+                        local isInAir = velocity.Y > 1.5 or velocity.Y < -1.5
                         
-                        -- Xử lý AFK
+                        -- === XỬ LÝ AFK ===
                         if not isMoving then
                             afkTimer = afkTimer + 0.05
                             if afkTimer >= 10 and not isSleeping then
@@ -389,94 +523,63 @@ local Toggle = MainTab:CreateToggle({
                             end
                         end
                         
-                        -- === HIỆU ỨNG SUY NGHĨ ===
-                        
-                        -- 1. Mồ hôi khi di chuyển (chảy từ mặt xuống)
+                        -- === HIỆU ỨNG DI CHUYỂN ===
                         if isMoving and not isInAir then
-                            -- Tạo mồ hôi mới
-                            if #sweatParts < 8 then
+                            -- Tạo mồ hôi
+                            if #sweatParts < 6 then
                                 local newSweats = createSweatEffect(char)
                                 for _, sweat in pairs(newSweats) do
                                     table.insert(sweatParts, sweat)
                                 end
                             end
-                            
-                            -- Cập nhật mồ hôi chảy xuống
-                            for i, sweat in pairs(sweatParts) do
-                                if sweat and sweat.Parent then
-                                    -- Di chuyển xuống dần
-                                    sweat.Position = sweat.Position + Vector3.new(0, -0.05, 0)
-                                    sweat.Transparency = sweat.Transparency + 0.01
-                                    
-                                    -- Xóa khi chảy xuống chân hoặc quá mờ
-                                    if sweat.Position.Y < rootPos.Y - 1.5 or sweat.Transparency > 0.9 then
-                                        sweat:Destroy()
+                            -- Cập nhật mồ hôi
+                            updateSweat(char, rootPos)
+                        else
+                            -- Xóa mồ hôi từ từ
+                            if #sweatParts > 0 then
+                                for i = #sweatParts, 1, -1 do
+                                    local sweat = sweatParts[i]
+                                    if sweat and sweat.Parent then
+                                        sweat.Transparency = sweat.Transparency + 0.05
+                                        if sweat.Transparency > 0.9 then
+                                            safeDestroy(sweat)
+                                            table.remove(sweatParts, i)
+                                        end
+                                    else
                                         table.remove(sweatParts, i)
                                     end
                                 end
                             end
-                        else
-                            -- Xóa mồ hôi khi không di chuyển
-                            sweatParts = clearEffects(sweatParts)
                         end
                         
-                        -- 2. Khói khi nhảy
-                        if isInAir and not isJumping then
-                            isJumping = true
-                            -- Tạo khói dưới chân
+                        -- === HIỆU ỨNG NHẢY ===
+                        if isInAir and not lastIsInAir then
+                            -- Tạo khói khi bắt đầu nhảy
                             local newSmokes = createSmokeEffect(char)
                             for _, smoke in pairs(newSmokes) do
                                 table.insert(smokeParts, smoke)
                             end
-                        elseif not isInAir then
-                            isJumping = false
-                            -- Xóa khói từ từ
-                            for i, smoke in pairs(smokeParts) do
-                                if smoke and smoke.Parent then
-                                    smoke.Transparency = smoke.Transparency + 0.05
-                                    if smoke.Transparency > 0.95 then
-                                        smoke:Destroy()
-                                        table.remove(smokeParts, i)
-                                    end
-                                end
-                            end
                         end
                         
-                        -- Cập nhật khói (bay lên và lan tỏa)
-                        for _, smoke in pairs(smokeParts) do
-                            if smoke and smoke.Parent then
-                                smoke.Position = smoke.Position + Vector3.new(
-                                    math.sin(tick() + math.random()) * 0.02,
-                                    0.03,
-                                    math.cos(tick() + math.random()) * 0.02
-                                )
-                                smoke.Size = smoke.Size + Vector3.new(0.02, 0.02, 0.02)
-                                smoke.Transparency = math.min(smoke.Transparency + 0.005, 1)
-                            end
+                        -- Cập nhật khói (nếu có)
+                        if #smokeParts > 0 then
+                            updateSmoke(char)
                         end
+                        
+                        -- === CẬP NHẬT DOT ===
+                        updateDots(char, rootPos)
+                        
+                        -- === CẬP NHẬT ZZZ ===
+                        if isSleeping then
+                            updateZzz(char)
+                        end
+                        
+                        -- Lưu trạng thái cũ
+                        lastIsMoving = isMoving
+                        lastIsInAir = isInAir
                     end
                     
-                    -- Cập nhật dot (dấu chấm)
-                    for i, dot in pairs(dotParts) do
-                        if dot and dot.Parent then
-                            local angle = (i / #dotParts) * math.pi * 2 + tick() * 0.5
-                            local radius = 1.5 + math.sin(tick() + i) * 1.5
-                            dot.Position = rootPos + Vector3.new(
-                                math.cos(angle) * radius,
-                                -1 + math.sin(tick() * 0.5 + i) * 0.5,
-                                math.sin(angle) * radius
-                            )
-                            local hue = (tick() * 0.1 + i / #dotParts) % 1
-                            dot.Color = Color3.fromHSV(hue, 1, 1)
-                            
-                            local moveFactor = humanoid and humanoid.MoveDirection.Magnitude or 0
-                            dot.Transparency = 0.3 + math.sin(tick() * 0.5 + i) * 0.2 + moveFactor * 0.3
-                        end
-                    end
-                    
-                    -- Lưu vị trí cũ để check di chuyển
-                    lastPos = rootPos
-                    wait(0.05)
+                    wait(0.033) -- ~30 FPS để mượt hơn
                 end
             end)
             
@@ -484,21 +587,19 @@ local Toggle = MainTab:CreateToggle({
             -- Tắt toggle
             speedBoosted = false
             speedIncreaseTime = 0
+            isSleeping = false
+            isWakeUpEffect = false
             
             if char and char:FindFirstChild("Humanoid") then
                 char.Humanoid.WalkSpeed = baseSpeed
-                if isSleeping then
-                    wakeUp(char)
-                end
             end
             
             -- Xóa tất cả effect
             dotParts = clearEffects(dotParts)
+            zzzParts = clearEffects(zzzParts)
             sweatParts = clearEffects(sweatParts)
             smokeParts = clearEffects(smokeParts)
-            zzzParts = clearEffects(zzzParts)
             
-            isSleeping = false
             afkTimer = 0
         end
     end
@@ -512,18 +613,23 @@ game.Players.LocalPlayer.CharacterAdded:Connect(function(char)
         if char and char:FindFirstChild("Humanoid") then
             char.Humanoid.WalkSpeed = baseSpeed
         end
-        updateEffects(char)
+        -- Tạo lại dot
+        for i = 1, 25 do
+            local dot = createDotEffect(char)
+            table.insert(dotParts, dot)
+        end
     end
 end)
 
 game.Players.LocalPlayer.CharacterRemoving:Connect(function()
     dotParts = clearEffects(dotParts)
+    zzzParts = clearEffects(zzzParts)
     sweatParts = clearEffects(sweatParts)
     smokeParts = clearEffects(smokeParts)
-    zzzParts = clearEffects(zzzParts)
     isSleeping = false
+    isWakeUpEffect = false
     speedBoosted = false
     speedIncreaseTime = 0
 end)
 
-print("Rayfield Gen2 Script loaded! (With sweat and smoke effects)")
+print("Rayfield Gen2 Script loaded! All effects follow character smoothly.")
