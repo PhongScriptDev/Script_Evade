@@ -110,6 +110,170 @@ end
 
 UpdateFpsTag()
 
+
+
+local MainTab = Window:CreateTab({
+   Name = "Main",
+   Icon = 4483362458
+})
+
+-- Biến
+local soundId = ""
+local isPlaying = false
+local soundObject = nil
+local currentVolume = 1
+local loopConnection = nil
+local isLooping = false
+
+-- Hàm phát âm thanh
+local function PlaySound(id, volume)
+   -- Xóa sound cũ
+   if soundObject then
+      soundObject:Stop()
+      soundObject:Destroy()
+      soundObject = nil
+   end
+  
+   -- Tạo sound mới
+   local sound = Instance.new("Sound")
+   sound.SoundId = "rbxassetid://" .. id
+   sound.Volume = volume
+   sound.Parent = game.Workspace
+   sound:Play()
+   soundObject = sound
+  
+   return sound
+end
+
+-- Hàm loop âm thanh
+local function StartLooping()
+   if loopConnection then
+      loopConnection:Disconnect()
+      loopConnection = nil
+   end
+  
+   isLooping = true
+   loopConnection = game:GetService("RunService").Heartbeat:Connect(function()
+      if isPlaying and soundObject then
+         -- Nếu sound đã hết hoặc không còn phát
+         if soundObject.Playing == false then
+            soundObject:Play() -- Phát lại
+         end
+         -- Cập nhật volume liên tục
+         soundObject.Volume = currentVolume
+      end
+   end)
+end
+
+-- Hàm dừng loop
+local function StopLooping()
+   isLooping = false
+   if loopConnection then
+      loopConnection:Disconnect()
+      loopConnection = nil
+   end
+end
+
+-- *** INPUT GEN2 ***
+local SoundInput = MainTab:CreateInput({
+   Name = "Sound Play",
+   PlaceholderText = "Nhập ID Sound Roblox...",
+   Value = "",
+   Callback = function(Text)
+      soundId = Text
+   end,
+})
+
+-- *** TOGGLE GEN2 (FIX LỖI) ***
+local SoundToggle = MainTab:CreateToggle({
+   Name = "Start/Stop sounds",
+   CurrentValue = false,
+   Flag = "SoundToggle",
+   Callback = function(Value)
+      -- DÙNG PCALL ĐỂ BẮT LỖI
+      local success, err = pcall(function()
+         if Value then
+            -- Kiểm tra ID
+            if soundId ~= "" and tonumber(soundId) then
+               -- Phát âm thanh
+               PlaySound(soundId, currentVolume)
+               isPlaying = true
+               
+               -- Bắt đầu loop
+               StartLooping()
+               
+               -- Thông báo thành công
+               Rayfield:Notify({
+                  Title = "✔️ Sound Start...",
+                  Content = "😏 Địt mẹ mày, id đúng rồi đấy cũng biết điều!",
+                  Duration = 5,
+                  Image = 4483362458,
+               })
+            else
+               -- Thông báo lỗi ID
+               Rayfield:Notify({
+                  Title = "❌ Từ chối âm thanh...",
+                  Content = "😡 Địt mẹ mày, đưa id đã sai mà còn đưa tao",
+                  Duration = 5,
+                  Image = 4483362458,
+               })
+               -- TẮT TOGGLE NẾU ID SAI
+               SoundToggle:Set(false)
+            end
+         else
+            -- Tắt sound và loop
+            if soundObject then
+               soundObject:Stop()
+               soundObject:Destroy()
+               soundObject = nil
+            end
+            isPlaying = false
+            StopLooping()
+         end
+      end)
+      
+      -- Nếu có lỗi, log ra console và tắt toggle
+      if not success then
+         warn("Lỗi Sound Toggle: " .. tostring(err))
+         SoundToggle:Set(false)
+         isPlaying = false
+         StopLooping()
+         if soundObject then
+            soundObject:Stop()
+            soundObject:Destroy()
+            soundObject = nil
+         end
+      end
+   end,
+})
+
+-- *** SLIDER GEN2 ***
+local VolumeSlider = MainTab:CreateSlider({
+   Name = "Âm lượng",
+   Range = {0, 1},
+   Increment = 0.01,
+   Suffix = "Volume",
+   CurrentValue = 1,
+   Flag = "VolumeSlider",
+   Callback = function(Value)
+      currentVolume = Value
+      if soundObject then
+         soundObject.Volume = Value
+      end
+   end,
+})
+
+-- Xóa connection khi tab đóng (tuỳ chọn)
+game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+   StopLooping()
+   if soundObject then
+      soundObject:Stop()
+      soundObject:Destroy()
+      soundObject = nil
+   end
+end)
+
+
 -- ===== TẠO TAB =====
 local farmTab = window:CreateTab({
     name = "Event Farm",
