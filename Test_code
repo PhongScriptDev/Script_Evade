@@ -22,24 +22,23 @@ local afkTimer = 0
 local isSleeping = false
 local zzzParts = {}
 local effectActive = true
-local isMale = true -- Mặc định nam, có thể chỉnh
+local isMale = true
 
--- Biến quản lý tốc độ mới (chỉ tăng 1 lần duy nhất)
-local speedBoosted = false -- Đã tăng tốc chưa
-local speedIncreaseTime = 0 -- Thời gian đã trôi qua
-local requiredTime = 300 -- 5 phút (300 giây)
+-- Biến quản lý tốc độ
+local speedBoosted = false
+local speedIncreaseTime = 0
+local requiredTime = 300 -- 5 phút
 local baseSpeed = 16
-local boostSpeed = 17 -- Chỉ tăng 1
+local boostSpeed = 17
 
--- Hàm tăng tốc độ (chỉ 1 lần duy nhất)
+-- Hàm tăng tốc độ
 local function applySpeedBoost(char)
     if not char or not char:FindFirstChild("Humanoid") then return end
-    if speedBoosted then return end -- Nếu đã tăng rồi thì không tăng nữa
+    if speedBoosted then return end
     
     speedBoosted = true
     char.Humanoid.WalkSpeed = boostSpeed
     
-    -- Tạo hiệu ứng thông báo tăng tốc
     local notif = Instance.new("Part")
     notif.Size = Vector3.new(2, 1, 2)
     notif.Shape = Enum.PartType.Block
@@ -72,11 +71,9 @@ local function applySpeedBoost(char)
         end
         notif:Destroy()
     end)
-    
-    print("Speed boosted: 16 → 17")
 end
 
--- Hàm tắt tất cả hiệu ứng (giữ lại Zzz)
+-- Hàm tắt hiệu ứng
 local function disableAllEffects()
     effectActive = false
     for _, v in pairs(auraParts) do 
@@ -128,7 +125,7 @@ local function enableAllEffects(char)
     updateEffects(char)
 end
 
--- Animation AFK cho R6 Nam (giữ nguyên)
+-- Animation AFK
 local function createAfkAnimationMale(char)
     if not char or not char:FindFirstChild("Humanoid") then return end
     local humanoid = char.Humanoid
@@ -144,11 +141,8 @@ local function createAfkAnimationMale(char)
     if not (torso and head and leftArm and rightArm and leftLeg and rightLeg) then return end
     
     isSleeping = true
-    
-    -- Tắt hết hiệu ứng
     disableAllEffects()
     
-    -- Tạo Zzz
     for i = 1, 3 do
         local zzz = Instance.new("Part")
         zzz.Size = Vector3.new(0.3, 0.3, 0.3)
@@ -176,37 +170,30 @@ local function createAfkAnimationMale(char)
         table.insert(zzzParts, zzz)
     end
     
-    -- Animation ngủ cho nam
     spawn(function()
-        -- Bước 1: 2 chân tách 1 tí
         for i = 1, 10 do
             leftLeg.CFrame = leftLeg.CFrame * CFrame.Angles(0, 0, math.rad(0.5))
             rightLeg.CFrame = rightLeg.CFrame * CFrame.Angles(0, 0, math.rad(-0.5))
             wait(0.05)
         end
         
-        -- Bước 2: Nhìn xung quanh trái phải
         for i = 1, 20 do
             head.CFrame = head.CFrame * CFrame.Angles(0, math.rad(math.sin(i/2) * 20), 0)
             wait(0.05)
         end
         
-        -- Bước 3: 2 tay để vào nhau
         for i = 1, 15 do
             leftArm.CFrame = torso.CFrame * CFrame.new(-1.2, 0.3, 0.2) * CFrame.Angles(math.rad(-30), math.rad(10), math.rad(20))
             rightArm.CFrame = torso.CFrame * CFrame.new(1.2, 0.3, 0.2) * CFrame.Angles(math.rad(-30), math.rad(-10), math.rad(-20))
             wait(0.05)
         end
         
-        -- Bước 4: Di chuyển tay xuống dưới rồi lên trên
         for cycle = 1, 3 do
-            -- Xuống dưới
             for i = 1, 15 do
                 leftArm.CFrame = leftArm.CFrame * CFrame.new(0, -0.05, 0)
                 rightArm.CFrame = rightArm.CFrame * CFrame.new(0, -0.05, 0)
                 wait(0.05)
             end
-            -- Lên trên
             for i = 1, 15 do
                 leftArm.CFrame = leftArm.CFrame * CFrame.new(0, 0.05, 0)
                 rightArm.CFrame = rightArm.CFrame * CFrame.new(0, 0.05, 0)
@@ -214,23 +201,17 @@ local function createAfkAnimationMale(char)
             end
         end
         
-        -- Bước 5: Đầu gật (ngủ)
         for i = 1, 30 do
             head.CFrame = head.CFrame * CFrame.Angles(math.rad(0.3), 0, 0)
             wait(0.05)
         end
         
-        -- Vòng lặp khi ngủ
         spawn(function()
             while isSleeping and char and char.Parent do
-                -- Đầu gật nhẹ
                 head.CFrame = head.CFrame * CFrame.Angles(math.rad(math.sin(tick() * 2) * 0.5), 0, 0)
-                
-                -- Tay hơi cử động
                 leftArm.CFrame = leftArm.CFrame * CFrame.Angles(0, 0, math.rad(math.sin(tick() * 0.5) * 2))
                 rightArm.CFrame = rightArm.CFrame * CFrame.Angles(0, 0, math.rad(math.sin(tick() * 0.7) * 2))
                 
-                -- Cập nhật Zzz
                 for i, zzz in pairs(zzzParts) do
                     if zzz and zzz.Parent then
                         zzz.Position = head.Position + Vector3.new(
@@ -241,14 +222,13 @@ local function createAfkAnimationMale(char)
                         zzz.Transparency = 0.3 + math.sin(tick() * 0.5 + i) * 0.2
                     end
                 end
-                
                 wait(0.1)
             end
         end)
     end)
 end
 
--- Hàm thức dậy cho nam (giữ nguyên)
+-- Hàm thức dậy
 local function wakeUpMale(char)
     if not char then return end
     isSleeping = false
@@ -262,7 +242,6 @@ local function wakeUpMale(char)
     
     if not (torso and head and leftArm and rightArm and leftLeg and rightLeg) then return end
     
-    -- Tạo hiệu ứng !
     local exclaim = Instance.new("Part")
     exclaim.Size = Vector3.new(0.5, 0.5, 0.5)
     exclaim.Shape = Enum.PartType.Ball
@@ -295,9 +274,7 @@ local function wakeUpMale(char)
         exclaim:Destroy()
     end)
     
-    -- Animation thức dậy
     spawn(function()
-        -- Đưa tay về vị trí bình thường
         for i = 1, 20 do
             leftArm.CFrame = leftArm.CFrame * CFrame.Angles(math.rad(1.5), 0, math.rad(-1))
             rightArm.CFrame = rightArm.CFrame * CFrame.Angles(math.rad(1.5), 0, math.rad(1))
@@ -305,21 +282,18 @@ local function wakeUpMale(char)
             wait(0.05)
         end
         
-        -- Khép chân lại
         for i = 1, 10 do
             leftLeg.CFrame = leftLeg.CFrame * CFrame.Angles(0, 0, math.rad(-0.5))
             rightLeg.CFrame = rightLeg.CFrame * CFrame.Angles(0, 0, math.rad(0.5))
             wait(0.05)
         end
         
-        -- Nhìn thẳng
         for i = 1, 10 do
             head.CFrame = head.CFrame * CFrame.Angles(0, math.rad(-math.sin(i/2) * 20), 0)
             wait(0.05)
         end
     end)
     
-    -- Xóa Zzz
     for _, zzz in pairs(zzzParts) do
         spawn(function()
             for i = 1, 10 do
@@ -332,11 +306,10 @@ local function wakeUpMale(char)
     wait(0.5)
     zzzParts = {}
     
-    -- Bật lại hiệu ứng
     enableAllEffects(char)
 end
 
--- Hàm tạo hiệu ứng (giữ nguyên)
+-- HÀM TẠO HIỆU ỨNG (QUAN TRỌNG)
 local function createDotEffect(char)
     local dot = Instance.new("Part")
     dot.Size = Vector3.new(0.2, 0.2, 0.2)
@@ -477,24 +450,40 @@ local function createAuraEffect(char)
     return auraRed, auraGreen
 end
 
+-- HÀM UPDATE EFFECTS (ĐÃ SỬA)
 local function updateEffects(char)
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    if not effectActive then return end
+    if not char or not char:FindFirstChild("HumanoidRootPart") then 
+        return 
+    end
+    if not effectActive then 
+        return 
+    end
+    if not isEnabled then 
+        return 
+    end
     
     local rootPart = char.HumanoidRootPart
     local rootPos = rootPart.Position
     
-    for _, v in pairs(auraParts) do v:Destroy() end
-    for _, v in pairs(dotParts) do v:Destroy() end
-    for _, v in pairs(numberParts) do v:Destroy() end
-    for _, v in pairs(errorParts) do v:Destroy() end
+    -- Xóa effect cũ
+    for _, v in pairs(auraParts) do 
+        pcall(function() v:Destroy() end) 
+    end
+    for _, v in pairs(dotParts) do 
+        pcall(function() v:Destroy() end) 
+    end
+    for _, v in pairs(numberParts) do 
+        pcall(function() v:Destroy() end) 
+    end
+    for _, v in pairs(errorParts) do 
+        pcall(function() v:Destroy() end) 
+    end
     auraParts = {}
     dotParts = {}
     numberParts = {}
     errorParts = {}
     
-    if not isEnabled then return end
-    
+    -- Tạo effect mới
     local auraRed, auraGreen = createAuraEffect(char)
     auraRed.Position = rootPos - Vector3.new(0, 2, 0)
     auraGreen.Position = rootPos - Vector3.new(0, 2.5, 0)
@@ -524,7 +513,7 @@ local function updateEffects(char)
     end
 end
 
--- Toggle chính (Rayfield Gen2 chuẩn)
+-- Toggle chính
 local Toggle = MainTab:CreateToggle({
     name = "TheKill Evolution (Enhance yourself)",
     callback = function(Value)
@@ -533,34 +522,24 @@ local Toggle = MainTab:CreateToggle({
         local char = player.Character
         
         if Value then
-            -- Reset biến tốc độ
             speedBoosted = false
             speedIncreaseTime = 0
+            effectActive = true
             
-            -- Đặt tốc độ ban đầu
             if char and char:FindFirstChild("Humanoid") then
                 char.Humanoid.WalkSpeed = baseSpeed
             end
             
-            afkTimer = 0
-            effectActive = true
+            -- GỌI HIỆU ỨNG NGAY KHI BẬT
+            if char then
+                updateEffects(char)
+            end
             
-            -- Loop quản lý tốc độ (đếm ngược 5 phút)
+            -- Loop tăng tốc
             spawn(function()
                 while isEnabled and char and char:FindFirstChild("Humanoid") do
                     if not speedBoosted then
                         speedIncreaseTime = speedIncreaseTime + 1
-                        
-                        -- Hiển thị thời gian còn lại (mỗi 10 giây)
-                        if speedIncreaseTime % 10 == 0 then
-                            local remaining = math.floor((requiredTime - speedIncreaseTime) / 60)
-                            local seconds = math.floor((requiredTime - speedIncreaseTime) % 60)
-                            if remaining >= 0 then
-                                print("Time until speed boost: " .. remaining .. "m " .. seconds .. "s")
-                            end
-                        end
-                        
-                        -- Kiểm tra nếu đủ 5 phút
                         if speedIncreaseTime >= requiredTime then
                             applySpeedBoost(char)
                         end
@@ -569,13 +548,11 @@ local Toggle = MainTab:CreateToggle({
                 end
             end)
             
-            -- Loop xử lý hiệu ứng (giữ nguyên)
+            -- Loop cập nhật hiệu ứng
             spawn(function()
-                local elapsed = 0
                 while isEnabled and char and char:FindFirstChild("HumanoidRootPart") do
                     local rootPart = char.HumanoidRootPart
                     local rootPos = rootPart.Position
-                    elapsed = elapsed + 0.05
                     
                     local humanoid = char:FindFirstChild("Humanoid")
                     if humanoid then
@@ -583,9 +560,7 @@ local Toggle = MainTab:CreateToggle({
                         if not isMoving then
                             afkTimer = afkTimer + 0.05
                             if afkTimer >= 10 and not isSleeping and humanoid.RigType == Enum.HumanoidRigType.R6 then
-                                if isMale then
-                                    createAfkAnimationMale(char)
-                                end
+                                createAfkAnimationMale(char)
                             end
                         else
                             afkTimer = 0
@@ -595,9 +570,10 @@ local Toggle = MainTab:CreateToggle({
                         end
                     end
                     
-                    -- Chỉ cập nhật hiệu ứng khi không ngủ
+                    -- Cập nhật vị trí effect khi không ngủ
+
                     if not isSleeping and effectActive then
-                        -- Cập nhật aura
+                        -- Aura
                         for _, part in pairs(auraParts) do
                             if part and part.Parent then
                                 if part.Color == Color3.fromRGB(255, 0, 0) then
@@ -612,7 +588,7 @@ local Toggle = MainTab:CreateToggle({
                             end
                         end
                         
-                        -- Cập nhật dot
+                        -- Dot
                         for i, dot in pairs(dotParts) do
                             if dot and dot.Parent then
                                 local angle = (i / #dotParts) * math.pi * 2 + tick() * 0.5
@@ -629,7 +605,7 @@ local Toggle = MainTab:CreateToggle({
                             end
                         end
                         
-                        -- Cập nhật số
+                        -- Số 1 và 0
                         for i, num in pairs(numberParts) do
                             if num and num.Parent then
                                 local angle = (i / #numberParts) * math.pi * 2 + tick() * 0.3
@@ -659,7 +635,7 @@ local Toggle = MainTab:CreateToggle({
                             end
                         end
                         
-                        -- Cập nhật Error!
+                        -- Error!
                         for i, err in pairs(errorParts) do
                             if err and err.Parent then
                                 local angle = (i / #errorParts) * math.pi * 2 + tick() * 0.2
@@ -705,7 +681,7 @@ local Toggle = MainTab:CreateToggle({
             end)
             
         else
-            -- Tắt: reset
+            -- Tắt
             speedBoosted = false
             speedIncreaseTime = 0
             
@@ -716,7 +692,6 @@ local Toggle = MainTab:CreateToggle({
                 end
             end
             
-            -- Xóa tất cả
             for _, v in pairs(auraParts) do
                 spawn(function()
                     for i = 1, 10 do
@@ -772,21 +747,21 @@ local Toggle = MainTab:CreateToggle({
 game.Players.LocalPlayer.CharacterAdded:Connect(function(char)
     if isEnabled then
         wait(1)
-        updateEffects(char)
         speedBoosted = false
         speedIncreaseTime = 0
         if char and char:FindFirstChild("Humanoid") then
             char.Humanoid.WalkSpeed = baseSpeed
         end
+        updateEffects(char)
     end
 end)
 
 game.Players.LocalPlayer.CharacterRemoving:Connect(function()
-    for _, v in pairs(auraParts) do v:Destroy() end
-    for _, v in pairs(dotParts) do v:Destroy() end
-    for _, v in pairs(numberParts) do v:Destroy() end
-    for _, v in pairs(errorParts) do v:Destroy() end
-    for _, v in pairs(zzzParts) do v:Destroy() end
+    for _, v in pairs(auraParts) do pcall(function() v:Destroy() end) end
+    for _, v in pairs(dotParts) do pcall(function() v:Destroy() end) end
+    for _, v in pairs(numberParts) do pcall(function() v:Destroy() end) end
+    for _, v in pairs(errorParts) do pcall(function() v:Destroy() end) end
+    for _, v in pairs(zzzParts) do pcall(function() v:Destroy() end) end
     auraParts = {}
     dotParts = {}
     numberParts = {}
@@ -797,4 +772,4 @@ game.Players.LocalPlayer.CharacterRemoving:Connect(function()
     speedIncreaseTime = 0
 end)
 
-print("Rayfield Gen2 Script with 1-time Speed Boost (16→17) loaded!")
+print("Rayfield Gen2 Script loaded! Toggle ON to see effects.")
