@@ -1,5 +1,47 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
 
+-- ===== TỰ ĐỘNG PHÁT NHẠC (FIX LỖI) =====
+local function PlayAutoMusic()
+    local soundId = "rbxassetid://123456789" -- Thay ID nhạc của bạn vào đây
+    
+    pcall(function()
+        -- Tạo Sound trong Workspace
+        local sound = Instance.new("Sound")
+        sound.SoundId = soundId
+        sound.Volume = 0.5
+        sound.Looped = false
+        sound.Parent = game.Workspace
+        
+        -- Phát nhạc
+        sound:Play()
+        print("🎵 Đang phát nhạc...")
+        
+        -- Kiểm tra nếu không phát được thì thử cách khác
+        task.wait(1)
+        if not sound.IsPlaying then
+            -- Cách 2: Tạo Sound trong LocalPlayer
+            local sound2 = Instance.new("Sound")
+            sound2.SoundId = soundId
+            sound2.Volume = 0.5
+            sound2.Looped = false
+            sound2.Parent = game.Players.LocalPlayer
+            sound2:Play()
+            print("🎵 Đang phát nhạc (cách 2)...")
+            
+            sound2.Ended:Connect(function()
+                sound2:Destroy()
+            end)
+        else
+            sound.Ended:Connect(function()
+                sound:Destroy()
+            end)
+        end
+    end)
+end
+
+-- Gọi phát nhạc
+PlayAutoMusic()
+
 
 local window = Rayfield:CreateWindow({
     name = "✨ Nexus Hub",
